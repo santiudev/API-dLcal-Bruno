@@ -5,7 +5,7 @@ API backend profesional para procesar pagos con dLocal Go, con integración de w
 ## 📋 Características
 
 - ✅ **Generación de links de pago** con dLocal Go
-- ✅ **Dos modalidades de pago**: Cuotas (12x $497 USD) o Pago único ($497 USD)
+- ✅ **Dos modalidades de pago**: Cuotas (hasta 4x $497 USD) o Pago único ($497 USD)
 - ✅ **Webhooks automáticos** para notificaciones de pago
 - ✅ **Registro en Google Sheets** de todos los pagos (PENDING, PAID, REJECTED, etc.)
 - ✅ **Reenvío a webhook de terceros** (AutomatiChat, etc.)
@@ -151,7 +151,7 @@ GET /api/pago?tel=TELEFONO&country=PAIS&type=TIPO
   "status": "PENDING",
   "amount": 497.0,
   "currency": "USD",
-  "installments": 12
+  "installments": 4
 }
 ```
 

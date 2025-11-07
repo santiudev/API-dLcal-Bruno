@@ -45,9 +45,9 @@ class DLocalService:
         """
         # Calcular monto según el tipo de pago
         if payment_type == "installments":
-            # 497 USD en hasta 12 cuotas - SOLO CREDIT_CARD
+            # 497 USD en hasta 4 cuotas - SOLO CREDIT_CARD
             amount = 497.00
-            max_installments = 12
+            max_installments = 4
         else:  # single
             # Pago único de 497 USD - Todos los métodos de pago disponibles
             amount = 497.00

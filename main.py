@@ -105,7 +105,7 @@ async def debug_payment_data(tel: str, country: str, type: str):
     # Calcular lo mismo que en el servicio
     if payment_type == "installments":
         amount = 497.00
-        max_installments = 12
+        max_installments = 4
     else:
         amount = 497.00
         max_installments = 1
@@ -162,7 +162,7 @@ async def create_payment_get(
     - **tel**: Número de teléfono con código de país (ej: 5255123456789). Si no se envía, el usuario completa sus datos
     - **country**: Código del país (AR, MX, CO, CL, etc.). Por defecto: MX
     - **type**: Tipo de pago
-        - "installments" o "cuotas": $497 USD en hasta 12 cuotas - SOLO CREDIT_CARD (DEFAULT)
+        - "installments" o "cuotas": $497 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
         - "single" o "unico": $497 USD en un solo pago - Todos los métodos
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
@@ -222,7 +222,7 @@ async def redirect_to_checkout(
     - **tel**: Número de teléfono con código de país (ej: 5255123456789). Si no se envía, el usuario completa sus datos
     - **country**: Código del país (AR, MX, CO, CL, etc.). Por defecto: MX
     - **type**: Tipo de pago
-        - "cuotas"/"installments": $497 USD en hasta 12 cuotas - SOLO CREDIT_CARD (DEFAULT)
+        - "cuotas"/"installments": $497 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
         - "single"/"unico": $497 USD en un solo pago - Todos los métodos
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
@@ -278,7 +278,7 @@ async def create_payment_post(payment_request: PaymentRequest):
     - **phone_number**: Número de teléfono del cliente
     - **country**: Código ISO del país (2 letras, ej: BR, MX, AR)
     - **payment_type**: Tipo de pago
-        - "installments": 497 USD en hasta 12 cuotas - SOLO CREDIT_CARD
+        - "installments": 497 USD en hasta 4 cuotas - SOLO CREDIT_CARD
         - "single": 497 USD en un solo pago - Todos los métodos
     - **customer_name**: Nombre del cliente (opcional)
     - **customer_email**: Email del cliente (opcional)
