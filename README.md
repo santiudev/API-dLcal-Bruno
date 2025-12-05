@@ -5,7 +5,7 @@ API backend profesional para procesar pagos con dLocal Go, con integración de w
 ## 📋 Características
 
 - ✅ **Generación de links de pago** con dLocal Go
-- ✅ **Dos modalidades de pago**: Cuotas (hasta 4x $497 USD) o Pago único ($497 USD)
+- ✅ **Dos modalidades de pago**: Cuotas (hasta 4x $430 USD) o Pago único ($397 USD)
 - ✅ **Webhooks automáticos** para notificaciones de pago
 - ✅ **Registro en Google Sheets** de todos los pagos (PENDING, PAID, REJECTED, etc.)
 - ✅ **Reenvío a webhook de terceros** (AutomatiChat, etc.)
@@ -90,7 +90,7 @@ DLOCAL_PENDING_URL=https://tu-dominio.com/pago-pendiente
 DLOCAL_CANCEL_URL=https://tu-dominio.com/pago-cancelado
 
 # dLocal Checkout Branding
-MERCHANT_NAME=ALQUIMIA - Johnny Abraham
+MERCHANT_NAME=Trading Nivel Inicial - Bruno el León
 PAYMENT_DESCRIPTION=Pago de servicio
 
 # Google Sheets Configuration
@@ -149,7 +149,7 @@ GET /api/pago?tel=TELEFONO&country=PAIS&type=TIPO
   "payment_id": "DP-123456",
   "redirect_url": "https://checkout.dlocalgo.com/...",
   "status": "PENDING",
-  "amount": 497.0,
+  "amount": 430.0,
   "currency": "USD",
   "installments": 4
 }
@@ -289,7 +289,7 @@ Este proyecto es privado y de uso exclusivo para ALQUIMIA.
 
 ## 🎯 Autor
 
-**Desarrollado para:** ALQUIMIA - Johnny Abraham  
+**Desarrollado para:** Trading Nivel Inicial - Bruno el León
 **Año:** 2025
 
 ---

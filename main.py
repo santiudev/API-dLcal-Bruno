@@ -69,7 +69,7 @@ async def test_webhook_manually(payment_id: str, status: str = "REJECTED"):
         "payment_id": payment_id,
         "status": status,
         "status_detail": "Test rejection",
-        "amount": 497.0,
+        "amount": 397.0,  # Monto por defecto para testing (pago único)
         "currency": "USD",
         "country": "AR"
     }
@@ -104,10 +104,10 @@ async def debug_payment_data(tel: str, country: str, type: str):
     
     # Calcular lo mismo que en el servicio
     if payment_type == "installments":
-        amount = 497.00
+        amount = 430.00
         max_installments = 4
     else:
-        amount = 497.00
+        amount = 397.00
         max_installments = 1
     
     order_id = f"order_{uuid.uuid4().hex[:16]}"
@@ -162,8 +162,8 @@ async def create_payment_get(
     - **tel**: Número de teléfono con código de país (ej: 5255123456789). Si no se envía, el usuario completa sus datos
     - **country**: Código del país (AR, MX, CO, CL, etc.). Por defecto: MX
     - **type**: Tipo de pago
-        - "installments" o "cuotas": $497 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
-        - "single" o "unico": $497 USD en un solo pago - Todos los métodos
+        - "installments" o "cuotas": $430 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
+        - "single" o "unico": $397 USD en un solo pago - Todos los métodos
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
     
@@ -222,8 +222,8 @@ async def redirect_to_checkout(
     - **tel**: Número de teléfono con código de país (ej: 5255123456789). Si no se envía, el usuario completa sus datos
     - **country**: Código del país (AR, MX, CO, CL, etc.). Por defecto: MX
     - **type**: Tipo de pago
-        - "cuotas"/"installments": $497 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
-        - "single"/"unico": $497 USD en un solo pago - Todos los métodos
+        - "cuotas"/"installments": $430 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
+        - "single"/"unico": $397 USD en un solo pago - Todos los métodos
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
     
@@ -278,8 +278,8 @@ async def create_payment_post(payment_request: PaymentRequest):
     - **phone_number**: Número de teléfono del cliente
     - **country**: Código ISO del país (2 letras, ej: BR, MX, AR)
     - **payment_type**: Tipo de pago
-        - "installments": 497 USD en hasta 4 cuotas - SOLO CREDIT_CARD
-        - "single": 497 USD en un solo pago - Todos los métodos
+        - "installments": 430 USD en hasta 4 cuotas - SOLO CREDIT_CARD
+        - "single": 397 USD en un solo pago - Todos los métodos
     - **customer_name**: Nombre del cliente (opcional)
     - **customer_email**: Email del cliente (opcional)
     

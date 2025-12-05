@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     dlocal_cancel_url: str   # URL cuando el usuario cancela
     
     # dLocal Checkout Branding (títulos que aparecen en el checkout)
-    merchant_name: str = "ALQUIMIA - Johnny Abraham"  # Nombre que aparece en el checkout
+    merchant_name: str = "Trading Nivel Inicial - Bruno el León"  # Nombre que aparece en el checkout
     payment_description: str = "Pago de servicio"     # Descripción del pago
     
     # Google Sheets Configuration
