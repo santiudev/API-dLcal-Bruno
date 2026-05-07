@@ -28,8 +28,7 @@ wheels/
 *.env
 !.env.example
 
-# Google Sheets credentials
-credentials.json
+# Service account / credenciales JSON (por si se agregan en el futuro)
 *.json
 !*.json.example
 

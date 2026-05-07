@@ -3,14 +3,13 @@ Modelos Pydantic para validación de datos
 """
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional, Literal, Dict, Any
-from datetime import datetime
 
 
 class PaymentRequest(BaseModel):
     """Request para crear un pago"""
     phone_number: str = Field(..., description="Número de teléfono del cliente")
     country: str = Field(..., min_length=2, max_length=2, description="Código ISO del país (ej: BR, MX, AR)")
-    payment_type: Literal["installments", "single"] = Field(..., description="Tipo de pago: cuotas o pago único")
+    payment_type: Literal["plan6", "plan9"] = Field(..., description="Tipo de pago: plan6 (6x USD 117) o plan9 (9x USD 87)")
     
     # Campos opcionales adicionales del cliente
     customer_name: Optional[str] = Field(None, description="Nombre del cliente")
@@ -84,22 +83,6 @@ class PaymentDetails(BaseModel):
     
     # Campos adicionales
     raw_data: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Datos raw completos de dLocal")
-
-
-class RejectedPayment(BaseModel):
-    """Modelo para pagos que se guardan en Sheets (todos los estados)"""
-    payment_id: str
-    timestamp: str
-    status: str  # Estado del pago: PENDING, PAID, REJECTED, CANCELLED, etc.
-    amount: float
-    currency: str
-    country: str
-    status_detail: Optional[str] = "N/A"  # Detalle del estado
-    status_code: Optional[str] = None
-    payment_method_type: Optional[str] = None
-    customer_email: Optional[str] = None
-    customer_phone: Optional[str] = None
-    order_id: Optional[str] = None
 
 
 class HealthResponse(BaseModel):

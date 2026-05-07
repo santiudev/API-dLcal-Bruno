@@ -1,6 +1,8 @@
 """
 Configuración de la aplicación y variables de entorno
 """
+from typing import Optional
+
 from pydantic_settings import BaseSettings
 
 
@@ -16,20 +18,16 @@ class Settings(BaseSettings):
     third_party_webhook_url: str
     app_base_url: str
     
-    # dLocal Redirect URLs (páginas de retorno después del pago)
-    dlocal_success_url: str  # URL cuando el pago es exitoso
-    dlocal_error_url: str    # URL cuando el pago falla
-    dlocal_pending_url: str  # URL cuando el pago queda pendiente
-    dlocal_cancel_url: str   # URL cuando el usuario cancela
+    # dLocal Redirect URLs (todas opcionales).
+    # Si quedan en None/"", dLocal muestra su propia pantalla de estado y no redirige.
+    dlocal_success_url: Optional[str] = None  # URL cuando el pago es exitoso
+    dlocal_error_url: Optional[str] = None    # URL cuando el pago falla
+    dlocal_pending_url: Optional[str] = None  # URL cuando el pago queda pendiente
+    dlocal_cancel_url: Optional[str] = None   # URL cuando el usuario cancela
     
     # dLocal Checkout Branding (títulos que aparecen en el checkout)
-    merchant_name: str = "Trading Nivel Inicial - Bruno el León"  # Nombre que aparece en el checkout
-    payment_description: str = "Pago de servicio"     # Descripción del pago
-    
-    # Google Sheets Configuration
-    google_sheets_credentials_file: str = "credentials.json"
-    google_sheets_name: str = "Rejected Payments"  # Cambio de nombre sugerido
-    google_sheets_worksheet: str = "Sheet1"
+    merchant_name: str = "Mentoría León"  # Nombre que aparece en el checkout
+    payment_description: str = "Mentoría León"     # Descripción del pago
     
     # Application Settings
     environment: str = "development"

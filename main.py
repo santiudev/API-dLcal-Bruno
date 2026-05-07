@@ -13,10 +13,8 @@ from models import (
     PaymentResponse,
     WebhookNotification,
     HealthResponse,
-    RejectedPayment
 )
 from services.dlocal_service import dlocal_service
-from services.sheets_service import sheets_service
 from services.webhook_service import webhook_service
 
 # Configurar logging
@@ -32,6 +30,20 @@ app = FastAPI(
     description="API backend para procesar pagos con dLocal Go",
     version="1.0.0"
 )
+
+
+def _normalize_payment_type(raw_type: str) -> str:
+    """Normaliza el parámetro `type` de la URL al payment_type interno.
+
+    Acepta sinónimos para los dos planes vigentes de Mentoría León:
+    - plan6 / 6 / 6cuotas / 117  -> "plan6" (6 cuotas de USD 117)
+    - plan9 / 9 / 9cuotas / 87   -> "plan9" (9 cuotas de USD 87)
+    Por defecto devuelve "plan6".
+    """
+    value = (raw_type or "").lower().strip()
+    if value in ("plan9", "9", "9cuotas", "87"):
+        return "plan9"
+    return "plan6"
 
 
 @app.get("/", tags=["Health"])
@@ -69,7 +81,7 @@ async def test_webhook_manually(payment_id: str, status: str = "REJECTED"):
         "payment_id": payment_id,
         "status": status,
         "status_detail": "Test rejection",
-        "amount": 397.0,  # Monto por defecto para testing (pago único)
+        "amount": 702.0,  # Monto por defecto para testing (Mentoría León - plan6)
         "currency": "USD",
         "country": "AR"
     }
@@ -96,21 +108,23 @@ async def debug_payment_data(tel: str, country: str, type: str):
     Endpoint de debug para ver exactamente qué datos se enviarían a dLocal
     sin crear el pago realmente
     """
-    from services.dlocal_service import dlocal_service
     import uuid
     
     phone_number = tel if tel.startswith('+') else f'+{tel}'
-    payment_type = "installments" if type.lower() in ["installments", "cuotas"] else "single"
+    payment_type = _normalize_payment_type(type)
     
-    # Calcular lo mismo que en el servicio
-    if payment_type == "installments":
-        amount = 430.00
-        max_installments = 4
-    else:
-        amount = 397.00
-        max_installments = 1
+    # Calcular lo mismo que en el servicio (Mentoría León)
+    if payment_type == "plan9":
+        amount = 783.00
+        max_installments = 9
+        installment_amount = 87.00
+    else:  # plan6
+        amount = 702.00
+        max_installments = 6
+        installment_amount = 117.00
     
     order_id = f"order_{uuid.uuid4().hex[:16]}"
+    description = f"{settings.payment_description} - {max_installments} cuotas de USD {installment_amount:.0f}"
     
     # Construir el mismo payload
     payment_data = {
@@ -123,24 +137,28 @@ async def debug_payment_data(tel: str, country: str, type: str):
         },
         "order_id": order_id,
         "name": settings.merchant_name,
-        "description": settings.payment_description,
+        "description": description,
         "notification_url": f"{settings.app_base_url}/api/webhook/dlocal",
+        "max_installments": max_installments,
+    }
+    
+    # URLs de retorno opcionales: solo se incluyen si están seteadas
+    optional_redirect_urls = {
         "success_url": settings.dlocal_success_url,
         "error_url": settings.dlocal_error_url,
         "pending_url": settings.dlocal_pending_url,
-        "cancel_url": settings.dlocal_cancel_url
+        "cancel_url": settings.dlocal_cancel_url,
     }
-    
-    if payment_type == "installments":
-        payment_data["max_installments"] = max_installments
-        payment_data["payment_type"] = "CREDIT_CARD"  # Solo tarjeta de crédito para cuotas
+    for key, value in optional_redirect_urls.items():
+        if value:
+            payment_data[key] = value
     
     return {
         "message": "Esto es lo que se enviaría a dLocal",
         "payment_type": payment_type,
         "installments_info": {
             "max_installments": max_installments,
-            "amount_per_installment": round(amount / max_installments, 2),
+            "amount_per_installment": installment_amount,
             "total_amount": amount
         },
         "full_payload": payment_data
@@ -151,7 +169,7 @@ async def debug_payment_data(tel: str, country: str, type: str):
 async def create_payment_get(
     tel: str = None,
     country: str = "MX",
-    type: str = "cuotas",
+    type: str = "plan6",
     name: str = None,
     email: str = None
 ):
@@ -161,16 +179,17 @@ async def create_payment_get(
     Parámetros URL (TODOS OPCIONALES):
     - **tel**: Número de teléfono con código de país (ej: 5255123456789). Si no se envía, el usuario completa sus datos
     - **country**: Código del país (AR, MX, CO, CL, etc.). Por defecto: MX
-    - **type**: Tipo de pago
-        - "installments" o "cuotas": $430 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
-        - "single" o "unico": $397 USD en un solo pago - Todos los métodos
+    - **type**: Plan de pago de Mentoría León. Las cuotas aplican solo si el cliente
+      paga con tarjeta de crédito; otros métodos cobran el total de una sola vez.
+        - "plan6" / "6" / "6cuotas": 6 cuotas de USD 117 — total USD 702 (DEFAULT)
+        - "plan9" / "9" / "9cuotas": 9 cuotas de USD 87  — total USD 783
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
     
     Ejemplos:
-    - /api/pago?tel=5255123456789&country=MX&type=cuotas  → Con teléfono precargado
-    - /api/pago?country=AR&type=single                     → Sin teléfono, pago único
-    - /api/pago                                            → Checkout limpio, 12 cuotas, país MX
+    - /api/pago?tel=5255123456789&country=MX&type=plan6  → Con teléfono precargado, 6 cuotas
+    - /api/pago?country=AR&type=plan9                     → Sin teléfono, 9 cuotas
+    - /api/pago                                           → Checkout limpio, plan6, país MX
     """
     try:
         # Normalizar el teléfono (solo si se proporciona)
@@ -179,7 +198,7 @@ async def create_payment_get(
             phone_number = tel if tel.startswith('+') else f'+{tel}'
         
         # Normalizar el tipo de pago
-        payment_type = "installments" if type.lower() in ["installments", "cuotas"] else "single"
+        payment_type = _normalize_payment_type(type)
         
         logger.info(
             f"Creating payment via GET - Country: {country}, "
@@ -211,7 +230,7 @@ async def create_payment_get(
 async def redirect_to_checkout(
     tel: str = None,
     country: str = "MX",
-    type: str = "cuotas",
+    type: str = "plan6",
     name: str = None,
     email: str = None
 ):
@@ -221,16 +240,17 @@ async def redirect_to_checkout(
     Parámetros URL (TODOS OPCIONALES):
     - **tel**: Número de teléfono con código de país (ej: 5255123456789). Si no se envía, el usuario completa sus datos
     - **country**: Código del país (AR, MX, CO, CL, etc.). Por defecto: MX
-    - **type**: Tipo de pago
-        - "cuotas"/"installments": $430 USD en hasta 4 cuotas - SOLO CREDIT_CARD (DEFAULT)
-        - "single"/"unico": $397 USD en un solo pago - Todos los métodos
+    - **type**: Plan de pago de Mentoría León. Las cuotas aplican solo si el cliente
+      paga con tarjeta de crédito; otros métodos cobran el total de una sola vez.
+        - "plan6" / "6" / "6cuotas": 6 cuotas de USD 117 — total USD 702 (DEFAULT)
+        - "plan9" / "9" / "9cuotas": 9 cuotas de USD 87  — total USD 783
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
     
     Ejemplos:
-    - /pagar?tel=5255123456789&country=MX&type=cuotas  → Con teléfono precargado
-    - /pagar?country=AR&type=single                     → Sin teléfono, pago único
-    - /pagar                                            → Checkout limpio, 12 cuotas, país MX
+    - /pagar?tel=5255123456789&country=MX&type=plan6  → Con teléfono precargado, 6 cuotas
+    - /pagar?country=AR&type=plan9                     → Sin teléfono, 9 cuotas
+    - /pagar                                           → Checkout limpio, plan6, país MX
     """
     from fastapi.responses import RedirectResponse
     
@@ -241,7 +261,7 @@ async def redirect_to_checkout(
             phone_number = tel if tel.startswith('+') else f'+{tel}'
         
         # Normalizar el tipo de pago
-        payment_type = "installments" if type.lower() in ["installments", "cuotas"] else "single"
+        payment_type = _normalize_payment_type(type)
         
         logger.info(
             f"Creating payment with redirect - Country: {country}, "
@@ -277,9 +297,9 @@ async def create_payment_post(payment_request: PaymentRequest):
     
     - **phone_number**: Número de teléfono del cliente
     - **country**: Código ISO del país (2 letras, ej: BR, MX, AR)
-    - **payment_type**: Tipo de pago
-        - "installments": 430 USD en hasta 4 cuotas - SOLO CREDIT_CARD
-        - "single": 397 USD en un solo pago - Todos los métodos
+    - **payment_type**: Plan de pago de Mentoría León (cuotas solo en tarjeta de crédito)
+        - "plan6": 6 cuotas de USD 117 — total USD 702
+        - "plan9": 9 cuotas de USD 87  — total USD 783
     - **customer_name**: Nombre del cliente (opcional)
     - **customer_email**: Email del cliente (opcional)
     
@@ -321,8 +341,8 @@ async def dlocal_webhook(request: Request):
     
     Proceso:
     1. Obtiene los detalles completos del pago desde dLocal Go
-    2. Envía los datos completos al webhook de terceros
-    3. Si el pago fue rechazado, lo guarda en Google Sheets
+    2. Envía los datos completos al webhook de terceros (AutomatiChat)
+    3. Loguea el estado final del pago
     """
     logger.info("="*80)
     logger.info("🔔 WEBHOOK RECEIVED FROM DLOCAL")
@@ -376,51 +396,9 @@ async def dlocal_webhook(request: Request):
             logger.error(f"Error sending to third party webhook: {str(e)}")
             # No fallar si el webhook de terceros falla
         
-        # Guardar TODOS los pagos en Google Sheets (sin importar el estado)
         payment_status = (body.get("status") or payment_data.get("status", "")).upper()
-        logger.info(f"Payment status detected: '{payment_status}' (from webhook or payment_data)")
-        logger.info(f"Saving payment {payment_id} to Google Sheets (Status: {payment_status})")
-        
-        try:
-            # Extraer información del pago
-            payer = payment_data.get("payer", {})
-            
-            # Obtener el teléfono del payer o del webhook original
-            customer_phone = None
-            if isinstance(payer, dict):
-                customer_phone = payer.get("phone")
-            if not customer_phone:
-                customer_phone = body.get("phone")
-            
-            # Crear el registro del pago (todos los estados)
-            payment_record = RejectedPayment(
-                payment_id=payment_id,
-                timestamp=datetime.utcnow().isoformat() + "Z",
-                status=payment_status or "UNKNOWN",  # Estado del pago
-                amount=payment_data.get("amount", 0),
-                currency=payment_data.get("currency", "USD"),
-                country=payment_data.get("country", "N/A"),
-                status_detail=payment_data.get("status_detail") or payment_data.get("status_code") or body.get("status_detail") or "N/A",
-                status_code=payment_data.get("status_code") or body.get("status_code"),
-                payment_method_type=payment_data.get("payment_method_type"),
-                customer_email=payer.get("email") if isinstance(payer, dict) else None,
-                customer_phone=customer_phone,
-                order_id=payment_data.get("order_id")
-            )
-            
-            result = sheets_service.save_rejected_payment_from_model(payment_record)
-            if result:
-                logger.info(f"✅ Payment {payment_id} (Status: {payment_status}) successfully saved to Google Sheets")
-            else:
-                logger.error(f"❌ Failed to save payment {payment_id} to Google Sheets")
-            
-        except Exception as e:
-            logger.error(f"Error saving payment to Sheets: {str(e)}")
-            import traceback
-            logger.error(f"Traceback: {traceback.format_exc()}")
-            # No fallar si Google Sheets falla
-        
-        logger.info(f"Webhook processed successfully for payment {payment_id}")
+        logger.info(f"Payment status detected: '{payment_status}'")
+        logger.info(f"Webhook processed successfully for payment {payment_id} (Status: {payment_status})")
         
         # Retornar 200 OK para confirmar recepción
         return JSONResponse(
@@ -477,14 +455,17 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 if __name__ == "__main__":
+    import os
     import uvicorn
     
-    # Ejecutar el servidor
-    # Cambia el puerto aquí si el 8000 está ocupado
+    # En plataformas como Render/Heroku el puerto lo inyecta la variable PORT.
+    # En local cae al 8001 por defecto.
+    port = int(os.getenv("PORT", "8001"))
+    
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8001,  # Cambiado a 8001, puedes usar el que quieras
+        port=port,
         reload=settings.environment == "development"
     )
 

@@ -1,13 +1,15 @@
-# 🚀 Bruno - dLocal Go Payment API
+# 🚀 Mentoría León - dLocal Go Payment API
 
-API backend profesional para procesar pagos con dLocal Go, con integración de webhooks y registro automático en Google Sheets.
+API backend profesional para procesar pagos de **Mentoría León** con dLocal Go, con integración de webhooks.
 
 ## 📋 Características
 
 - ✅ **Generación de links de pago** con dLocal Go
-- ✅ **Dos modalidades de pago**: Cuotas (hasta 4x $430 USD) o Pago único ($397 USD)
+- ✅ **Dos planes de pago (USD)**:
+  - **plan6**: 6 cuotas de USD 117 (total USD 702)
+  - **plan9**: 9 cuotas de USD 87 (total USD 783)
+- ✅ **Todos los métodos de pago** disponibles del país (tarjeta crédito/débito, efectivo, transferencia). Las cuotas aplican solo a tarjetas de crédito; otros métodos cobran el total de una sola vez.
 - ✅ **Webhooks automáticos** para notificaciones de pago
-- ✅ **Registro en Google Sheets** de todos los pagos (PENDING, PAID, REJECTED, etc.)
 - ✅ **Reenvío a webhook de terceros** (AutomatiChat, etc.)
 - ✅ **Redirect URLs configurables** para páginas de éxito/error
 - ✅ **Branding personalizable** en el checkout de dLocal
@@ -18,9 +20,10 @@ API backend profesional para procesar pagos con dLocal Go, con integración de w
 - **FastAPI** - Framework web moderno y rápido
 - **Uvicorn** - Servidor ASGI
 - **dLocal Go API** - Procesamiento de pagos
-- **Google Sheets API** - Persistencia de datos
 - **Pydantic** - Validación de datos
 - **httpx** - Cliente HTTP asíncrono
+
+> ⚠️ La API es **stateless** (no usa base de datos). Los pagos viven en dLocal; cualquier consulta histórica se hace contra la API de dLocal vía `GET /api/payment/{id}`.
 
 ## 📁 Estructura del Proyecto
 
@@ -30,16 +33,15 @@ API backend profesional para procesar pagos con dLocal Go, con integración de w
 ├── config.py               # Configuración y variables de entorno
 ├── models.py               # Modelos Pydantic
 ├── requirements.txt        # Dependencias Python
+├── render.yaml             # Blueprint de deploy en Render
+├── .env.example            # Plantilla de variables de entorno
 ├── services/
 │   ├── dlocal_service.py   # Integración con dLocal API
-│   ├── sheets_service.py   # Integración con Google Sheets
 │   └── webhook_service.py  # Manejo de webhooks
 ├── utils/
 │   └── security.py         # Utilidades de seguridad (headers, auth)
-├── .env                    # Variables de entorno (no incluido en repo)
-├── credentials.json        # Credenciales Google Sheets (no incluido en repo)
-├── DEPLOY_GUIDE.md        # Guía completa de deployment
-└── README.md              # Este archivo
+├── .env                    # Variables de entorno locales (no incluido en repo)
+└── README.md               # Este archivo
 ```
 
 ## 🔧 Configuración Local (Desarrollo)
@@ -83,37 +85,22 @@ DLOCAL_API_URL=https://api-sbx.dlocalgo.com  # Sandbox
 THIRD_PARTY_WEBHOOK_URL=https://app.automatichat.com/api/webhook-scenario/TU_ID
 APP_BASE_URL=http://localhost:8001  # En producción: https://tu-dominio.com
 
-# dLocal Redirect URLs
-DLOCAL_SUCCESS_URL=https://tu-dominio.com/pago-exitoso
-DLOCAL_ERROR_URL=https://tu-dominio.com/pago-error
-DLOCAL_PENDING_URL=https://tu-dominio.com/pago-pendiente
-DLOCAL_CANCEL_URL=https://tu-dominio.com/pago-cancelado
+# dLocal Redirect URLs (TODAS OPCIONALES — si quedan vacías, dLocal usa su pantalla de estado)
+# DLOCAL_SUCCESS_URL=https://tu-dominio.com/pago-exitoso
+# DLOCAL_ERROR_URL=https://tu-dominio.com/pago-error
+# DLOCAL_PENDING_URL=https://tu-dominio.com/pago-pendiente
+# DLOCAL_CANCEL_URL=https://tu-dominio.com/pago-cancelado
 
 # dLocal Checkout Branding
-MERCHANT_NAME=Trading Nivel Inicial - Bruno el León
-PAYMENT_DESCRIPTION=Pago de servicio
-
-# Google Sheets Configuration
-GOOGLE_SHEETS_CREDENTIALS_FILE=credentials.json
-GOOGLE_SHEETS_NAME=Rejected Payments
-GOOGLE_SHEETS_WORKSHEET=Sheet1
+MERCHANT_NAME=Mentoría León
+PAYMENT_DESCRIPTION=Mentoría León
 
 # Application Settings
 ENVIRONMENT=development
 LOG_LEVEL=INFO
 ```
 
-### 4. Configurar Google Sheets
-
-1. Ve a [Google Cloud Console](https://console.cloud.google.com/)
-2. Crea un proyecto nuevo
-3. Habilita las APIs: "Google Sheets API" y "Google Drive API"
-4. Crea credenciales de tipo "Service Account"
-5. Descarga el archivo JSON de credenciales
-6. Renómbralo a `credentials.json` y colócalo en la raíz del proyecto
-7. Comparte tu Google Sheet con el email del service account
-
-### 5. Ejecutar
+### 4. Ejecutar
 
 ```bash
 # En Windows
@@ -138,20 +125,22 @@ Verifica que la API esté funcionando.
 GET /api/pago?tel=TELEFONO&country=PAIS&type=TIPO
 ```
 
-**Parámetros:**
+**Parámetros (todos opcionales):**
 - `tel`: Número de teléfono (con código de país, ej: 5255123456789)
-- `country`: Código del país (AR, MX, CO, CL, etc.)
-- `type`: Tipo de pago (`cuotas` o `single`)
+- `country`: Código del país (AR, MX, CO, CL, etc.). Default: `MX`
+- `type`: Plan de pago. Sinónimos aceptados:
+  - `plan6` / `6` / `6cuotas` → 6 cuotas de USD 117 (total USD 702) — **default**
+  - `plan9` / `9` / `9cuotas` → 9 cuotas de USD 87 (total USD 783)
 
-**Respuesta:**
+**Respuesta (ejemplo plan6):**
 ```json
 {
   "payment_id": "DP-123456",
   "redirect_url": "https://checkout.dlocalgo.com/...",
   "status": "PENDING",
-  "amount": 430.0,
+  "amount": 702.0,
   "currency": "USD",
-  "installments": 4
+  "installments": 6
 }
 ```
 
@@ -175,87 +164,47 @@ Una vez corriendo, visita:
 - Swagger UI: `http://localhost:8001/docs`
 - ReDoc: `http://localhost:8001/redoc`
 
-## 🚀 Deploy en Producción
+## 🚀 Deploy en Render
 
-Para deployar en un servidor (Digital Ocean, AWS, etc.), sigue la guía completa:
+El repo incluye un **Render Blueprint** (`render.yaml`) listo para usar.
 
-📖 **[Ver DEPLOY_GUIDE.md](./DEPLOY_GUIDE.md)**
+### Pasos rápidos
 
-La guía incluye:
-- Configuración de droplet en Digital Ocean
-- Instalación de dependencias del sistema
-- Configuración de Nginx como proxy reverso
-- Instalación de certificado SSL con Let's Encrypt
-- Configuración de systemd para ejecutar como servicio
-- Seguridad y firewall
-- Troubleshooting
+1. Tener el repo pusheado a GitHub.
+2. En [dashboard.render.com](https://dashboard.render.com) → **New +** → **Blueprint** → seleccionar este repo.
+3. Render detecta `render.yaml` y pide los valores de las variables marcadas como secret:
+   - `DLOCAL_API_KEY`, `DLOCAL_SECRET_KEY`
+   - `THIRD_PARTY_WEBHOOK_URL`
+   - `APP_BASE_URL` (la dejás vacía y la completás después con la URL real de Render)
+   - URLs de retorno (opcionales)
+4. Esperar el primer build (~2-5 min). Cuando esté live, copiás la URL pública (ej: `https://mentoria-leon-api.onrender.com`).
+5. Editás `APP_BASE_URL` con esa URL (con `https://`, sin slash final) → redeploy automático.
+6. Health check final: `curl https://mentoria-leon-api.onrender.com/health`.
 
-### Deploy Rápido (Resumen)
+### Pasaje a producción
 
-1. **Crear droplet Ubuntu 22.04** en Digital Ocean
-2. **Subir archivos** al servidor
-3. **Ejecutar script de deploy:**
-   ```bash
-   chmod +x deploy.sh
-   sudo ./deploy.sh
-   ```
-4. **Configurar Nginx** (ver guía)
-5. **Instalar SSL** con certbot
-6. ✅ ¡Listo!
+Cuando estés listo para procesar pagos reales, en Render → Environment:
+
+```
+DLOCAL_API_URL=https://api.dlocalgo.com
+DLOCAL_API_KEY=<key_de_PRODUCCIÓN>
+DLOCAL_SECRET_KEY=<secret_de_PRODUCCIÓN>
+```
+
+> ⚠️ **Plan Free de Render**: el servicio se duerme tras 15 min sin tráfico y tarda ~30-60s en despertar. Para producción seria, pasar a **Starter (USD 7/mes)** y evitar perder webhooks de dLocal.
 
 ## 🔐 Seguridad
 
-- ✅ Archivo `.env` no se incluye en el repositorio
-- ✅ Credenciales de Google Sheets protegidas
-- ✅ Autenticación Bearer con dLocal Go
-- ✅ Headers de seguridad en Nginx
-- ✅ Firewall configurado (UFW)
-- ✅ SSL/TLS automático con Let's Encrypt
+- ✅ `.env` y secrets no se incluyen en el repositorio (gitignoreados).
+- ✅ Variables sensibles cargadas vía dashboard de Render (no en código).
+- ✅ Autenticación Bearer con dLocal Go.
+- ✅ HTTPS automático provisto por Render (Let's Encrypt).
 
 ## 📊 Monitoreo
 
-### Ver Logs
+**En desarrollo:** los logs se muestran en consola.
 
-**En desarrollo:**
-Los logs se muestran en consola.
-
-**En producción:**
-```bash
-# Logs de la aplicación
-tail -f /root/app/logs/access.log
-tail -f /root/app/logs/error.log
-
-# Logs del sistema
-journalctl -u bruno-api -f
-```
-
-### Estado del Servicio
-
-```bash
-systemctl status bruno-api
-```
-
-## 🛠️ Mantenimiento
-
-### Reiniciar Servicio
-```bash
-sudo systemctl restart bruno-api
-```
-
-### Actualizar Código
-```bash
-cd /root/app
-git pull  # Si usas Git
-systemctl restart bruno-api
-```
-
-### Actualizar Dependencias
-```bash
-cd /root/app
-source venv/bin/activate
-pip install -r requirements.txt --upgrade
-systemctl restart bruno-api
-```
+**En Render:** panel del servicio → tab **Logs** (en vivo) o **Events** (deploys, restarts). También hay **Metrics** (CPU/RAM/respuestas).
 
 ## 🧪 Testing
 
@@ -266,7 +215,11 @@ curl http://localhost:8001/health
 
 ### Probar Generación de Link
 ```bash
-curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=cuotas"
+# Plan por defecto (plan6 - 6 cuotas de USD 117)
+curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=plan6"
+
+# Plan 9 cuotas de USD 87
+curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=plan9"
 ```
 
 ### Probar Webhook Manualmente
@@ -278,18 +231,17 @@ curl -X POST http://localhost:8001/debug/test-webhook?payment_id=TEST123&status=
 
 Para problemas o dudas:
 
-1. **Revisa los logs** para identificar el error
-2. **Consulta la documentación** de dLocal Go
-3. **Verifica la configuración** del archivo `.env`
-4. **Consulta la guía de deploy** para troubleshooting
+1. **Revisa los logs** en Render (tab "Logs") o en consola si corre local.
+2. **Consulta la documentación** de dLocal Go.
+3. **Verifica la configuración** del archivo `.env` (local) o de las env vars en Render.
 
 ## 📄 Licencia
 
-Este proyecto es privado y de uso exclusivo para ALQUIMIA.
+Este proyecto es privado y de uso exclusivo para **Mentoría León**.
 
 ## 🎯 Autor
 
-**Desarrollado para:** Trading Nivel Inicial - Bruno el León
+**Desarrollado para:** Mentoría León
 **Año:** 2025
 
 ---
@@ -298,8 +250,8 @@ Este proyecto es privado y de uso exclusivo para ALQUIMIA.
 
 - [dLocal Go Documentación](https://docs.dlocal.com/)
 - [FastAPI Documentación](https://fastapi.tiangolo.com/)
-- [Google Sheets API](https://developers.google.com/sheets/api)
-- [Digital Ocean Tutorials](https://www.digitalocean.com/community/tutorials)
+- [Render — Blueprint Spec](https://render.com/docs/blueprint-spec)
+- [Render — Variables de entorno](https://render.com/docs/configure-environment-variables)
 
 ---
 

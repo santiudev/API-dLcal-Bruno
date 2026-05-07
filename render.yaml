@@ -1,0 +1,69 @@
+# Render Blueprint para Mentoría León - dLocal Go Payment API
+# Documentación: https://render.com/docs/blueprint-spec
+#
+# Para usarlo:
+# 1. Push de este archivo al repo en GitHub.
+# 2. En Render: New + → Blueprint → seleccionar este repositorio.
+# 3. Render leerá este YAML y pedirá los valores de las variables marcadas
+#    con `sync: false` (secrets). Las completás una sola vez en el dashboard.
+
+services:
+  - type: web
+    name: mentoria-leon-api
+    runtime: python
+    region: oregon            # Cambialo si querés otra región (ej: ohio, frankfurt)
+    plan: free                # Subir a "starter" (USD 7/mes) para producción seria — ver notas
+    branch: main
+    autoDeploy: true          # Re-deploy automático en cada push a main
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    envVars:
+      # Versión de Python (fija para evitar sorpresas)
+      - key: PYTHON_VERSION
+        value: 3.12.7
+
+      # Entorno
+      - key: ENVIRONMENT
+        value: production
+      - key: LOG_LEVEL
+        value: INFO
+
+      # dLocal Go API — secrets (los completás en el dashboard al crear el blueprint)
+      - key: DLOCAL_API_KEY
+        sync: false
+      - key: DLOCAL_SECRET_KEY
+        sync: false
+      - key: DLOCAL_API_URL
+        # Sandbox por defecto. Para producción: https://api.dlocalgo.com
+        value: https://api-sbx.dlocalgo.com
+
+      # URL pública de la API (la usa el código para armar el notification_url de dLocal).
+      # IMPORTANTE: setear DESPUÉS del primer deploy con el valor real (con https://).
+      # Ej: https://mentoria-leon-api.onrender.com  (o tu dominio custom)
+      - key: APP_BASE_URL
+        sync: false
+
+      # Webhook de terceros (AutomatiChat u otro)
+      - key: THIRD_PARTY_WEBHOOK_URL
+        sync: false
+
+      # URLs de redirect post-pago — TODAS OPCIONALES.
+      # Si las dejás en blanco en el dashboard, dLocal usa su pantalla de estado
+      # propia y no redirige al cliente. Si querés que vuelva a tu sitio, completá
+      # las que correspondan (pueden apuntar todas a la misma landing).
+      - key: DLOCAL_SUCCESS_URL
+        sync: false
+      - key: DLOCAL_ERROR_URL
+        sync: false
+      - key: DLOCAL_PENDING_URL
+        sync: false
+      - key: DLOCAL_CANCEL_URL
+        sync: false
+
+      # Branding del checkout
+      - key: MERCHANT_NAME
+        value: Mentoría León
+      - key: PAYMENT_DESCRIPTION
+        value: Mentoría León

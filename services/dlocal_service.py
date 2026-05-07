@@ -36,27 +36,38 @@ class DLocalService:
         Args:
             phone_number: Número de teléfono del cliente
             country: Código ISO del país (2 letras)
-            payment_type: 'installments' para 12 cuotas o 'single' para pago único
+            payment_type: 'plan6' (6 cuotas de USD 117) o 'plan9' (9 cuotas de USD 87)
             customer_name: Nombre del cliente (opcional)
             customer_email: Email del cliente (opcional)
             
         Returns:
             PaymentResponse con payment_id, redirect_url y otros datos
         """
-        # Calcular monto según el tipo de pago
-        if payment_type == "installments":
-            # 430 USD en hasta 4 cuotas - SOLO CREDIT_CARD
-            amount = 430.00
-            max_installments = 4
-        else:  # single
-            # Pago único de 397 USD - Todos los métodos de pago disponibles
-            amount = 397.00
-            max_installments = 1
+        # Mentoría León: dos planes con cuotas vía tarjeta de crédito;
+        # otros métodos de pago cobran el total de una sola vez.
+        if payment_type == "plan9":
+            # 9 cuotas de USD 87 = USD 783 total
+            amount = 783.00
+            max_installments = 9
+            installment_amount = 87.00
+        else:  # plan6 (default)
+            # 6 cuotas de USD 117 = USD 702 total
+            amount = 702.00
+            max_installments = 6
+            installment_amount = 117.00
         
         # Generar order_id único
         order_id = f"order_{uuid.uuid4().hex[:16]}"
         
+        # Descripción que aparece en el checkout (incluye el plan elegido)
+        description = (
+            f"{settings.payment_description} - {max_installments} cuotas de USD {installment_amount:.0f}"
+        )
+        
         # Construir el body del request
+        # No restringimos `payment_type`: el checkout muestra todos los métodos disponibles
+        # en el país. Con tarjeta de crédito el cliente puede elegir cuotas (hasta max_installments).
+        # Con métodos sin cuotas (débito, efectivo, transferencia) paga el total de una sola vez.
         payment_data = {
             "amount": amount,
             "currency": "USD",
@@ -64,17 +75,22 @@ class DLocalService:
             "payment_method_flow": "REDIRECT",
             "order_id": order_id,
             "name": settings.merchant_name,  # Nombre que aparece en el checkout
-            "description": settings.payment_description if payment_type == "installments" else f"{settings.payment_description} - Pago único",  # Descripción del pago
+            "description": description,
             "notification_url": f"{self.app_base_url}/api/webhook/dlocal",
+            "max_installments": max_installments,
+        }
+        
+        # Las URLs de retorno son opcionales: si no están seteadas en .env,
+        # dLocal usa su propia pantalla de estado y no redirige al cliente.
+        optional_redirect_urls = {
             "success_url": settings.dlocal_success_url,
             "error_url": settings.dlocal_error_url,
             "pending_url": settings.dlocal_pending_url,
-            "cancel_url": settings.dlocal_cancel_url
+            "cancel_url": settings.dlocal_cancel_url,
         }
-        
-        # Para pagos en cuotas, restringir a solo tarjeta de crédito
-        if payment_type == "installments":
-            payment_data["payment_type"] = "CREDIT_CARD"
+        for key, value in optional_redirect_urls.items():
+            if value:
+                payment_data[key] = value
         
         # Solo agregar el objeto payer si se proporcionó teléfono
         # Esto permite que el checkout esté limpio si no se pasa tel
@@ -83,19 +99,16 @@ class DLocalService:
                 "phone": phone_number  # Enviar solo el teléfono, otros campos quedan libres
             }
         
-        # Agregar información de cuotas si aplica (solo max_installments)
-        if payment_type == "installments":
-            payment_data["max_installments"] = max_installments
-        
         # Generar headers simples con Bearer token
         headers = get_dlocal_headers(self.api_key, self.secret_key)
         
         # Realizar la petición a dLocal Go
         url = f"{self.api_url}/v1/payments"
         
-        logger.info(f"Creating payment for country {country}, type {payment_type}, amount {amount}")
-        if payment_type == "installments":
-            logger.info(f"Max installments offered: {max_installments} cuotas")
+        logger.info(
+            f"Creating payment for country {country}, plan {payment_type}, "
+            f"total USD {amount} ({max_installments} cuotas de USD {installment_amount:.0f})"
+        )
         logger.debug(f"Payment data being sent to dLocal: {payment_data}")
         
         try:
