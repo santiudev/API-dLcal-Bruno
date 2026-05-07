@@ -9,7 +9,10 @@ class PaymentRequest(BaseModel):
     """Request para crear un pago"""
     phone_number: str = Field(..., description="Número de teléfono del cliente")
     country: str = Field(..., min_length=2, max_length=2, description="Código ISO del país (ej: BR, MX, AR)")
-    payment_type: Literal["plan6", "plan9"] = Field(..., description="Tipo de pago: plan6 (6x USD 117) o plan9 (9x USD 87)")
+    payment_type: Literal["plan6", "plan9", "contado"] = Field(
+        ...,
+        description="Tipo de pago: plan6 (6x USD 117), plan9 (9x USD 87) o contado (USD 597 pago único)"
+    )
     
     # Campos opcionales adicionales del cliente
     customer_name: Optional[str] = Field(None, description="Nombre del cliente")

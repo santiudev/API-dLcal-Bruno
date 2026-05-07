@@ -36,33 +36,36 @@ class DLocalService:
         Args:
             phone_number: Número de teléfono del cliente
             country: Código ISO del país (2 letras)
-            payment_type: 'plan6' (6 cuotas de USD 117) o 'plan9' (9 cuotas de USD 87)
+            payment_type: 'plan6' (6x USD 117), 'plan9' (9x USD 87) o 'contado' (USD 597 pago único)
             customer_name: Nombre del cliente (opcional)
             customer_email: Email del cliente (opcional)
             
         Returns:
             PaymentResponse con payment_id, redirect_url y otros datos
         """
-        # Mentoría León: dos planes con cuotas vía tarjeta de crédito;
-        # otros métodos de pago cobran el total de una sola vez.
+        # Mentoría León: 3 planes posibles. Las cuotas aplican solo si el cliente
+        # paga con tarjeta de crédito; otros métodos cobran el total de una sola vez.
         if payment_type == "plan9":
             # 9 cuotas de USD 87 = USD 783 total
             amount = 783.00
             max_installments = 9
             installment_amount = 87.00
+            description = f"{settings.payment_description} - 9 cuotas de USD 87"
+        elif payment_type == "contado":
+            # Pago de contado: USD 597 sin cuotas
+            amount = 597.00
+            max_installments = 1
+            installment_amount = 597.00
+            description = f"{settings.payment_description} - Pago de contado"
         else:  # plan6 (default)
             # 6 cuotas de USD 117 = USD 702 total
             amount = 702.00
             max_installments = 6
             installment_amount = 117.00
+            description = f"{settings.payment_description} - 6 cuotas de USD 117"
         
         # Generar order_id único
         order_id = f"order_{uuid.uuid4().hex[:16]}"
-        
-        # Descripción que aparece en el checkout (incluye el plan elegido)
-        description = (
-            f"{settings.payment_description} - {max_installments} cuotas de USD {installment_amount:.0f}"
-        )
         
         # Construir el body del request
         # No restringimos `payment_type`: el checkout muestra todos los métodos disponibles
@@ -77,8 +80,11 @@ class DLocalService:
             "name": settings.merchant_name,  # Nombre que aparece en el checkout
             "description": description,
             "notification_url": f"{self.app_base_url}/api/webhook/dlocal",
-            "max_installments": max_installments,
         }
+        
+        # max_installments solo tiene sentido en planes con cuotas (>1)
+        if max_installments > 1:
+            payment_data["max_installments"] = max_installments
         
         # Las URLs de retorno son opcionales: si no están seteadas en .env,
         # dLocal usa su propia pantalla de estado y no redirige al cliente.

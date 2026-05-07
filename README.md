@@ -5,9 +5,10 @@ API backend profesional para procesar pagos de **Mentoría León** con dLocal Go
 ## 📋 Características
 
 - ✅ **Generación de links de pago** con dLocal Go
-- ✅ **Dos planes de pago (USD)**:
+- ✅ **Tres planes de pago (USD)**:
   - **plan6**: 6 cuotas de USD 117 (total USD 702)
   - **plan9**: 9 cuotas de USD 87 (total USD 783)
+  - **contado**: Pago único de USD 597
 - ✅ **Todos los métodos de pago** disponibles del país (tarjeta crédito/débito, efectivo, transferencia). Las cuotas aplican solo a tarjetas de crédito; otros métodos cobran el total de una sola vez.
 - ✅ **Webhooks automáticos** para notificaciones de pago
 - ✅ **Reenvío a webhook de terceros** (AutomatiChat, etc.)
@@ -131,6 +132,7 @@ GET /api/pago?tel=TELEFONO&country=PAIS&type=TIPO
 - `type`: Plan de pago. Sinónimos aceptados:
   - `plan6` / `6` / `6cuotas` → 6 cuotas de USD 117 (total USD 702) — **default**
   - `plan9` / `9` / `9cuotas` → 9 cuotas de USD 87 (total USD 783)
+  - `contado` / `single` / `597` → Pago único de USD 597
 
 **Respuesta (ejemplo plan6):**
 ```json
@@ -220,6 +222,9 @@ curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=plan6"
 
 # Plan 9 cuotas de USD 87
 curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=plan9"
+
+# Pago único de USD 597
+curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=contado"
 ```
 
 ### Probar Webhook Manualmente

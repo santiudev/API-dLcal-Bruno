@@ -35,14 +35,17 @@ app = FastAPI(
 def _normalize_payment_type(raw_type: str) -> str:
     """Normaliza el parámetro `type` de la URL al payment_type interno.
 
-    Acepta sinónimos para los dos planes vigentes de Mentoría León:
-    - plan6 / 6 / 6cuotas / 117  -> "plan6" (6 cuotas de USD 117)
-    - plan9 / 9 / 9cuotas / 87   -> "plan9" (9 cuotas de USD 87)
+    Acepta sinónimos para los planes vigentes de Mentoría León:
+    - plan6 / 6 / 6cuotas / 117             -> "plan6" (6 cuotas de USD 117)
+    - plan9 / 9 / 9cuotas / 87              -> "plan9" (9 cuotas de USD 87)
+    - contado / single / unico / 597        -> "contado" (USD 597 pago único)
     Por defecto devuelve "plan6".
     """
     value = (raw_type or "").lower().strip()
     if value in ("plan9", "9", "9cuotas", "87"):
         return "plan9"
+    if value in ("contado", "single", "unico", "único", "597"):
+        return "contado"
     return "plan6"
 
 
@@ -81,7 +84,7 @@ async def test_webhook_manually(payment_id: str, status: str = "REJECTED"):
         "payment_id": payment_id,
         "status": status,
         "status_detail": "Test rejection",
-        "amount": 702.0,  # Monto por defecto para testing (Mentoría León - plan6)
+        "amount": 702.0,  # Monto de testing por defecto (Mentoría León - plan6)
         "currency": "USD",
         "country": "AR"
     }
@@ -118,13 +121,19 @@ async def debug_payment_data(tel: str, country: str, type: str):
         amount = 783.00
         max_installments = 9
         installment_amount = 87.00
+        description = f"{settings.payment_description} - 9 cuotas de USD 87"
+    elif payment_type == "contado":
+        amount = 597.00
+        max_installments = 1
+        installment_amount = 597.00
+        description = f"{settings.payment_description} - Pago de contado"
     else:  # plan6
         amount = 702.00
         max_installments = 6
         installment_amount = 117.00
+        description = f"{settings.payment_description} - 6 cuotas de USD 117"
     
     order_id = f"order_{uuid.uuid4().hex[:16]}"
-    description = f"{settings.payment_description} - {max_installments} cuotas de USD {installment_amount:.0f}"
     
     # Construir el mismo payload
     payment_data = {
@@ -139,8 +148,9 @@ async def debug_payment_data(tel: str, country: str, type: str):
         "name": settings.merchant_name,
         "description": description,
         "notification_url": f"{settings.app_base_url}/api/webhook/dlocal",
-        "max_installments": max_installments,
     }
+    if max_installments > 1:
+        payment_data["max_installments"] = max_installments
     
     # URLs de retorno opcionales: solo se incluyen si están seteadas
     optional_redirect_urls = {
@@ -183,13 +193,15 @@ async def create_payment_get(
       paga con tarjeta de crédito; otros métodos cobran el total de una sola vez.
         - "plan6" / "6" / "6cuotas": 6 cuotas de USD 117 — total USD 702 (DEFAULT)
         - "plan9" / "9" / "9cuotas": 9 cuotas de USD 87  — total USD 783
+        - "contado" / "single" / "597": Pago único de USD 597
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
     
     Ejemplos:
-    - /api/pago?tel=5255123456789&country=MX&type=plan6  → Con teléfono precargado, 6 cuotas
-    - /api/pago?country=AR&type=plan9                     → Sin teléfono, 9 cuotas
-    - /api/pago                                           → Checkout limpio, plan6, país MX
+    - /api/pago?tel=5255123456789&country=MX&type=plan6  → Teléfono precargado, 6 cuotas
+    - /api/pago?country=AR&type=plan9                    → Sin teléfono, 9 cuotas
+    - /api/pago?type=contado                             → Pago único USD 597
+    - /api/pago                                          → Checkout limpio, plan6, país MX
     """
     try:
         # Normalizar el teléfono (solo si se proporciona)
@@ -244,13 +256,15 @@ async def redirect_to_checkout(
       paga con tarjeta de crédito; otros métodos cobran el total de una sola vez.
         - "plan6" / "6" / "6cuotas": 6 cuotas de USD 117 — total USD 702 (DEFAULT)
         - "plan9" / "9" / "9cuotas": 9 cuotas de USD 87  — total USD 783
+        - "contado" / "single" / "597": Pago único de USD 597
     - **name**: Nombre del cliente (opcional)
     - **email**: Email del cliente (opcional)
     
     Ejemplos:
-    - /pagar?tel=5255123456789&country=MX&type=plan6  → Con teléfono precargado, 6 cuotas
-    - /pagar?country=AR&type=plan9                     → Sin teléfono, 9 cuotas
-    - /pagar                                           → Checkout limpio, plan6, país MX
+    - /pagar?tel=5255123456789&country=MX&type=plan6  → Teléfono precargado, 6 cuotas
+    - /pagar?country=AR&type=plan9                    → Sin teléfono, 9 cuotas
+    - /pagar?type=contado                             → Pago único USD 597
+    - /pagar                                          → Checkout limpio, plan6, país MX
     """
     from fastapi.responses import RedirectResponse
     
@@ -300,6 +314,7 @@ async def create_payment_post(payment_request: PaymentRequest):
     - **payment_type**: Plan de pago de Mentoría León (cuotas solo en tarjeta de crédito)
         - "plan6": 6 cuotas de USD 117 — total USD 702
         - "plan9": 9 cuotas de USD 87  — total USD 783
+        - "contado": Pago único de USD 597
     - **customer_name**: Nombre del cliente (opcional)
     - **customer_email**: Email del cliente (opcional)
     
