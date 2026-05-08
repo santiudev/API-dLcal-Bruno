@@ -28,7 +28,33 @@ class Settings(BaseSettings):
     # dLocal Checkout Branding (títulos que aparecen en el checkout)
     merchant_name: str = "Mentoría León"  # Nombre que aparece en el checkout
     payment_description: str = "Mentoría León"     # Descripción del pago
-    
+
+    # One-Click Upsell (One Time Offer)
+    # Requiere que dLocal Go habilite la feature en la cuenta del merchant.
+    # Cuando está activo, todos los checkouts se crean con allow_upsell=true,
+    # por lo que el checkout solo permitirá tarjetas de crédito/débito.
+    # Hay una ventana de 15 minutos desde el pago original para confirmar el upsell.
+    upsell_enabled: bool = True
+    upsell_amount: float = 197.00                                          # Monto fijo del producto upsell (USD)
+    upsell_description: str = "Mentoría León - Extensión de 3 meses"       # Descripción del cargo upsell
+
+    # URLs a las que se redirige al cliente DESPUÉS de hacer clic en el botón
+    # de upsell (endpoint /api/upsell/click/{payment_id}). Si quedan vacías,
+    # la API devuelve una página HTML simple de fallback.
+    upsell_success_url: Optional[str] = None   # Cuando el upsell se cobra OK
+    upsell_error_url: Optional[str] = None     # Cuando el upsell falla y NO hay redirect_url de dLocal
+    upsell_decline_url: Optional[str] = None   # A donde va el botón "No, gracias" de la página de oferta
+
+    # Meta (Facebook) Pixel + Conversions API
+    # El pixel_id se inyecta en el HTML para tracking del lado cliente.
+    # El access_token se usa server-side para mandar eventos via Conversions API
+    # (más confiable porque no se ve afectado por bloqueadores ni iOS 14.5+).
+    meta_pixel_id: Optional[str] = None
+    meta_access_token: Optional[str] = None
+    # Endpoint de Conversions API. Versión congelada para evitar breaking changes
+    # cuando Meta saca una nueva versión de Graph API.
+    meta_graph_api_version: str = "v18.0"
+
     # Application Settings
     environment: str = "development"
     log_level: str = "INFO"

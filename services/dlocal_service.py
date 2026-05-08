@@ -8,7 +8,7 @@ import uuid
 
 from config import settings
 from utils.security import get_dlocal_headers
-from models import PaymentResponse, PaymentDetails
+from models import PaymentResponse, PaymentDetails, UpsellResponse
 
 logger = logging.getLogger(__name__)
 
@@ -81,10 +81,18 @@ class DLocalService:
             "description": description,
             "notification_url": f"{self.app_base_url}/api/webhook/dlocal",
         }
-        
+
         # max_installments solo tiene sentido en planes con cuotas (>1)
         if max_installments > 1:
             payment_data["max_installments"] = max_installments
+
+        # One-Click Upsell: si está habilitado en la cuenta del merchant, se pide
+        # allow_upsell=true para que dLocal devuelva el merchant_checkout_token y
+        # permita cobrar el OTO con un solo click después del pago original.
+        # IMPORTANTE: con allow_upsell=true, el checkout solo permite tarjetas de
+        # crédito/débito (no efectivo, no transferencia).
+        if settings.upsell_enabled:
+            payment_data["allow_upsell"] = True
         
         # Las URLs de retorno son opcionales: si no están seteadas en .env,
         # dLocal usa su propia pantalla de estado y no redirige al cliente.
@@ -137,7 +145,8 @@ class DLocalService:
                     status=result.get("status", "PENDING"),
                     amount=amount,
                     currency="USD",
-                    installments=max_installments
+                    installments=max_installments,
+                    merchant_checkout_token=result.get("merchant_checkout_token"),
                 )
                 
         except httpx.HTTPStatusError as e:
@@ -146,7 +155,96 @@ class DLocalService:
         except Exception as e:
             logger.error(f"Error creating payment: {str(e)}")
             raise
-    
+
+    async def confirm_upsell(
+        self,
+        merchant_checkout_token: str,
+        amount: Optional[float] = None,
+        description: Optional[str] = None,
+        order_id: Optional[str] = None,
+        installments: Optional[int] = None,
+    ) -> UpsellResponse:
+        """
+        Confirma el cobro de un One-Click Upsell sobre un checkout previamente
+        creado con allow_upsell=true.
+
+        Solo funciona dentro de los 15 minutos posteriores al pago original.
+        Si el cobro falla, la respuesta incluye un redirect_url para que el cliente
+        complete el pago con otro método.
+
+        Args:
+            merchant_checkout_token: Token devuelto en el create_payment original
+            amount: Monto del upsell (si None, usa settings.upsell_amount)
+            description: Descripción del cargo (si None, usa settings.upsell_description)
+            order_id: Order ID custom (si None, se genera uno nuevo)
+            installments: (EXPERIMENTAL) cantidad de cuotas a cobrar con tarjeta de
+                crédito. dLocal Go no documenta este campo para el endpoint de
+                upsell, lo mandamos igual y vemos si lo respeta en sandbox.
+
+        Returns:
+            UpsellResponse con el estado del cobro
+        """
+        # Valores por defecto desde config (.env)
+        final_amount = amount if amount is not None else settings.upsell_amount
+        final_description = description or settings.upsell_description
+        final_order_id = order_id or f"upsell_{uuid.uuid4().hex[:16]}"
+
+        # dLocal Go espera "orderId" en camelCase para el endpoint de upsell
+        # (no order_id como en el create_payment estándar).
+        upsell_data = {
+            "amount": final_amount,
+            "description": final_description,
+            "orderId": final_order_id,
+        }
+
+        # EXPERIMENTAL: probar si dLocal acepta cuotas en el upsell one-click.
+        # Mandamos los dos nombres de campo posibles porque la doc no especifica
+        # cuál es el correcto para este endpoint en particular.
+        if installments is not None and installments > 1:
+            upsell_data["installments"] = installments
+            upsell_data["max_installments"] = installments
+
+        headers = get_dlocal_headers(self.api_key, self.secret_key)
+        url = f"{self.api_url}/v1/payments/upsell/{merchant_checkout_token}"
+
+        logger.info(
+            f"Confirming upsell for token {merchant_checkout_token[:12]}... "
+            f"amount=USD {final_amount}, order_id={final_order_id}, "
+            f"installments={installments or 1}"
+        )
+        logger.debug(f"Upsell data being sent to dLocal: {upsell_data}")
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(url, json=upsell_data, headers=headers)
+                response.raise_for_status()
+                result = response.json()
+
+                logger.info(
+                    f"Upsell processed: payment_id={result.get('id')}, "
+                    f"status={result.get('status')}"
+                )
+
+                return UpsellResponse(
+                    payment_id=result.get("id", ""),
+                    status=result.get("status", "UNKNOWN"),
+                    amount=result.get("amount", final_amount),
+                    currency=result.get("currency", "USD"),
+                    description=result.get("description", final_description),
+                    order_id=result.get("order_id") or result.get("orderId") or final_order_id,
+                    merchant_checkout_token=merchant_checkout_token,
+                    redirect_url=result.get("redirect_url"),
+                )
+
+        except httpx.HTTPStatusError as e:
+            logger.error(
+                f"HTTP error confirming upsell: {e.response.status_code} - {e.response.text}"
+            )
+            raise Exception(f"Error confirming upsell: {e.response.text}")
+        except Exception as e:
+            logger.error(f"Error confirming upsell: {str(e)}")
+            raise
+
     async def get_payment_details(self, payment_id: str) -> PaymentDetails:
         """
         Obtiene los detalles completos de un pago desde dLocal Go

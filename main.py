@@ -2,9 +2,13 @@
 API Backend para integración con dLocal Go
 Procesa pagos, recibe webhooks y envía notificaciones
 """
+from pathlib import Path
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 from datetime import datetime
+from typing import Optional
 import logging
 
 from config import settings
@@ -13,9 +17,16 @@ from models import (
     PaymentResponse,
     WebhookNotification,
     HealthResponse,
+    UpsellRequest,
+    UpsellResponse,
 )
 from services.dlocal_service import dlocal_service
 from services.webhook_service import webhook_service
+from services.meta_pixel_service import meta_pixel_service
+
+# Templates Jinja2 para servir HTML (página de upsell, etc.)
+TEMPLATES_DIR = Path(__file__).parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 # Configurar logging
 logging.basicConfig(
@@ -430,6 +441,446 @@ async def dlocal_webhook(request: Request):
             status_code=200,
             content={"status": "error", "message": str(e)}
         )
+
+
+async def _process_upsell_confirmation(
+    merchant_checkout_token: str,
+    amount: Optional[float],
+    description: Optional[str],
+    order_id: Optional[str],
+    installments: Optional[int],
+) -> UpsellResponse:
+    """Lógica compartida entre los endpoints GET y POST de confirmación de upsell.
+
+    Si no se reciben overrides, usa el monto/descripción fijos de config (.env).
+    La ventana válida es de 15 minutos desde el pago original (la valida dLocal).
+    `installments` es experimental: dLocal Go no documenta cuotas en upsells.
+    """
+    if not settings.upsell_enabled:
+        # Defensa por si alguien llama el endpoint con la feature desactivada
+        # en config: cortamos antes de pegarle a dLocal.
+        raise HTTPException(
+            status_code=400,
+            detail="Upsell feature is disabled (UPSELL_ENABLED=false in config)"
+        )
+
+    logger.info(
+        f"Processing upsell confirmation - token={merchant_checkout_token[:12]}..., "
+        f"amount_override={amount}, order_id_override={order_id}, "
+        f"installments={installments}"
+    )
+    try:
+        result = await dlocal_service.confirm_upsell(
+            merchant_checkout_token=merchant_checkout_token,
+            amount=amount,
+            description=description,
+            order_id=order_id,
+            installments=installments,
+        )
+        logger.info(
+            f"Upsell confirmation result: payment_id={result.payment_id}, "
+            f"status={result.status}"
+        )
+        return result
+    except Exception as e:
+        logger.error(f"Error confirming upsell: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error confirming upsell: {str(e)}"
+        )
+
+
+@app.post(
+    "/api/upsell/confirm/{merchant_checkout_token}",
+    response_model=UpsellResponse,
+    tags=["Upsell"],
+)
+async def confirm_upsell_post(
+    merchant_checkout_token: str,
+    upsell_request: Optional[UpsellRequest] = None,
+):
+    """
+    Confirma el cobro de un One-Click Upsell (One Time Offer) usando POST.
+
+    Se debe ejecutar dentro de los 15 minutos posteriores al pago original.
+    El cliente NO necesita reingresar datos de tarjeta — dLocal usa la tarjeta
+    del checkout original asociado al `merchant_checkout_token`.
+
+    - **merchant_checkout_token**: token devuelto al crear el checkout original
+    - **body** (opcional): permite overridear `amount`, `description` y `order_id`.
+      Si no se manda body o los campos están vacíos, se usan los valores fijos
+      configurados en `.env` (UPSELL_AMOUNT, UPSELL_DESCRIPTION).
+
+    Si el cobro one-click falla, la respuesta incluye un `redirect_url` para que
+    el cliente complete el pago con otro método.
+    """
+    body = upsell_request or UpsellRequest()
+    return await _process_upsell_confirmation(
+        merchant_checkout_token=merchant_checkout_token,
+        amount=body.amount,
+        description=body.description,
+        order_id=body.order_id,
+        installments=body.installments,
+    )
+
+
+def _extract_merchant_checkout_token(payment_details_raw: dict) -> Optional[str]:
+    """Busca el merchant_checkout_token dentro del response del GET payment.
+
+    dLocal Go puede devolverlo en el root del payload o en un sub-objeto.
+    Como la doc del endpoint GET /v1/payments/{id} no documenta exactamente
+    dónde aparece, probamos varios paths comunes.
+    """
+    if not isinstance(payment_details_raw, dict):
+        return None
+
+    direct = payment_details_raw.get("merchant_checkout_token")
+    if direct:
+        return direct
+
+    # Algunos providers anidan el token dentro de "checkout" o "metadata"
+    for nested_key in ("checkout", "checkout_data", "metadata", "data"):
+        nested = payment_details_raw.get(nested_key)
+        if isinstance(nested, dict) and nested.get("merchant_checkout_token"):
+            return nested["merchant_checkout_token"]
+
+    return None
+
+
+def _render_upsell_fallback_html(success: bool, message: str, retry_url: Optional[str] = None) -> str:
+    """Renderiza una página HTML simple cuando no hay URLs de redirect configuradas."""
+    color = "#7c3aed" if success else "#dc2626"
+    icon = "✓" if success else "✕"
+    retry_button = (
+        f'<a href="{retry_url}" style="display:inline-block;margin-top:24px;padding:12px 24px;'
+        f'background:#7c3aed;color:white;text-decoration:none;border-radius:8px;'
+        f'font-weight:600;">Reintentar pago</a>'
+        if retry_url else ""
+    )
+    return f"""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{'Compra confirmada' if success else 'Hubo un problema'}</title>
+        <style>
+            body {{
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                background: #0f0f1a;
+                color: #e5e7eb;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
+                margin: 0;
+                padding: 24px;
+            }}
+            .card {{
+                background: #1a1a2e;
+                padding: 48px;
+                border-radius: 16px;
+                max-width: 480px;
+                text-align: center;
+                border: 1px solid #2d2d44;
+            }}
+            .icon {{
+                width: 64px;
+                height: 64px;
+                border-radius: 50%;
+                background: {color};
+                color: white;
+                font-size: 32px;
+                line-height: 64px;
+                margin: 0 auto 24px;
+            }}
+            h1 {{ margin: 0 0 12px; font-size: 24px; }}
+            p {{ margin: 0; color: #9ca3af; line-height: 1.5; }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <div class="icon">{icon}</div>
+            <h1>{'¡Listo!' if success else 'Hubo un problema'}</h1>
+            <p>{message}</p>
+            {retry_button}
+        </div>
+    </body>
+    </html>
+    """
+
+
+def _extract_payer_info(payment_details_raw: dict) -> dict:
+    """Extrae email/phone/country del payment para enriquecer eventos de Meta CAPI.
+
+    Cuanta más PII hasheada mande Meta, mejor matching de conversiones contra
+    los usuarios de Facebook/Instagram.
+    """
+    if not isinstance(payment_details_raw, dict):
+        return {}
+    payer = payment_details_raw.get("payer") or {}
+    return {
+        "email": payer.get("email"),
+        "phone": payer.get("phone"),
+        "country": payment_details_raw.get("country"),
+    }
+
+
+def _render_upsell_template(request: Request, payment_id: str):
+    """Helper que arma el contexto y renderiza el template `upsell.html`."""
+    decline_url = settings.upsell_decline_url or "/"
+    return templates.TemplateResponse(
+        "upsell.html",
+        {
+            "request": request,
+            "payment_id": payment_id,
+            "upsell_amount": settings.upsell_amount,
+            "upsell_description": settings.upsell_description,
+            "decline_url": decline_url,
+            "meta_pixel_id": settings.meta_pixel_id,
+        },
+    )
+
+
+@app.get("/upsell", tags=["Upsell"], summary="Página de oferta upsell (vía query param)")
+async def render_upsell_page_querystring(
+    request: Request,
+    payment_id: Optional[str] = None,
+    status: Optional[str] = None,
+    order_id: Optional[str] = None,
+):
+    """
+    Página de upsell servida cuando dLocal redirige con `?payment_id=...&status=PAID`.
+
+    Esta es la URL pensada para `DLOCAL_SUCCESS_URL`:
+        DLOCAL_SUCCESS_URL=https://dlocal.brunoelleon.com/upsell
+
+    dLocal automáticamente agrega `?payment_id=...&status=...&order_id=...` al
+    final, y este endpoint extrae el `payment_id` del query string para renderizar
+    la oferta. Si el pago no fue exitoso, redirige al cliente al UPSELL_DECLINE_URL
+    (no tiene sentido ofrecer un upsell sobre un pago que no se completó).
+    """
+    from fastapi.responses import RedirectResponse, HTMLResponse
+
+    if not payment_id:
+        logger.warning("Upsell page hit without payment_id query param")
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=False,
+                message="No se pudo identificar tu compra. Si pagaste, contactanos a soporte."
+            ),
+            status_code=400,
+        )
+
+    # Solo mostramos el upsell si el pago original fue exitoso. Si el cliente
+    # llegó acá con un status distinto, lo mandamos a la página de gracias.
+    if status and status.upper() != "PAID":
+        logger.info(
+            f"Skipping upsell page for payment {payment_id} with status={status}"
+        )
+        return RedirectResponse(url=settings.upsell_decline_url or "/")
+
+    return _render_upsell_template(request, payment_id)
+
+
+@app.get("/upsell/{payment_id}", tags=["Upsell"], summary="Página de oferta upsell (vía path param)")
+async def render_upsell_page(request: Request, payment_id: str):
+    """
+    Renderiza la página de oferta de upsell ("Pero antes... préstame atención acá").
+
+    Versión con path param — útil para linkear directo. El flujo "real" desde
+    dLocal usa `GET /upsell?payment_id=...` (ver endpoint de arriba).
+
+    El template incluye:
+    - Pixel de Meta (PageView + ViewContent + InitiateCheckout en el botón)
+    - Timer de 10 minutos persistido en localStorage
+    - Botón "Sí, sumar 3 meses" → /api/upsell/click/{payment_id}
+    - Botón "No, gracias" → UPSELL_DECLINE_URL
+    """
+    return _render_upsell_template(request, payment_id)
+
+
+@app.get(
+    "/api/upsell/click/{payment_id}",
+    tags=["Upsell"],
+    summary="Endpoint para el botón 'Sí, sumar 3 meses' de la página de upsell",
+)
+async def upsell_click_redirect(request: Request, payment_id: str):
+    """
+    Endpoint pensado para ser el destino del botón "Sí, quiero el upsell" en la
+    página de gracias / one-time-offer de Bruno.
+
+    Flujo:
+    1. Recibe el `payment_id` del checkout original.
+    2. Llama a dLocal para obtener los detalles del pago y extraer el
+       `merchant_checkout_token`.
+    3. Llama al endpoint de confirmación de upsell (cobra los USD configurados).
+    4. Si el cobro es exitoso, dispara un evento `Purchase` server-side a Meta
+       Conversions API (más confiable que el Pixel del lado cliente).
+    5. Redirige al cliente:
+        - Si todo OK → `UPSELL_SUCCESS_URL` (o página HTML de fallback)
+        - Si falla pero dLocal devuelve `redirect_url` → manda al cliente a ese
+          link para que reintente con otro método de pago.
+        - Si falla sin retry → `UPSELL_ERROR_URL` (o HTML de fallback)
+    """
+    from fastapi.responses import RedirectResponse, HTMLResponse
+
+    logger.info(f"Upsell click received for payment_id={payment_id}")
+
+    if not settings.upsell_enabled:
+        logger.warning("Upsell click endpoint hit but UPSELL_ENABLED=false")
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=False,
+                message="La oferta no está disponible en este momento."
+            ),
+            status_code=400,
+        )
+
+    # 1. Obtener el merchant_checkout_token a partir del payment_id
+    try:
+        payment_details = await dlocal_service.get_payment_details(payment_id)
+    except Exception as e:
+        logger.error(f"Could not retrieve payment {payment_id} for upsell click: {e}")
+        if settings.upsell_error_url:
+            return RedirectResponse(url=settings.upsell_error_url)
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=False,
+                message="No pudimos encontrar tu compra. Si pagaste, contactanos a soporte."
+            ),
+            status_code=404,
+        )
+
+    token = _extract_merchant_checkout_token(payment_details.raw_data or {})
+    if not token:
+        logger.error(
+            f"merchant_checkout_token not found in payment {payment_id} response. "
+            f"Verificar que el checkout fue creado con allow_upsell=true."
+        )
+        if settings.upsell_error_url:
+            return RedirectResponse(url=settings.upsell_error_url)
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=False,
+                message="Esta compra no es elegible para la oferta. Si creés que es un error, contactanos."
+            ),
+            status_code=400,
+        )
+
+    # 2. Confirmar el cobro del upsell
+    try:
+        result = await dlocal_service.confirm_upsell(merchant_checkout_token=token)
+    except Exception as e:
+        logger.error(f"Error confirming upsell for payment {payment_id}: {e}")
+        if settings.upsell_error_url:
+            return RedirectResponse(url=settings.upsell_error_url)
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=False,
+                message="No pudimos procesar el cobro. Tu compra principal sigue activa."
+            ),
+            status_code=500,
+        )
+
+    # 3. Decidir el redirect según el estado del cobro
+    status_upper = (result.status or "").upper()
+
+    if status_upper == "PAID":
+        logger.info(f"Upsell PAID for original payment {payment_id} → redirecting to success")
+
+        # Disparar Purchase event a Meta Conversions API (server-side).
+        # Usamos el payment_id del upsell como event_id para que sea estable
+        # y deduplicable si en el futuro se agrega el Pixel del lado cliente.
+        try:
+            payer_info = _extract_payer_info(payment_details.raw_data or {})
+            await meta_pixel_service.send_purchase_event(
+                event_id=result.payment_id or f"upsell_{payment_id}",
+                amount=result.amount,
+                currency=result.currency,
+                order_id=result.order_id,
+                client_ip=request.client.host if request.client else None,
+                client_user_agent=request.headers.get("user-agent"),
+                email=payer_info.get("email"),
+                phone=payer_info.get("phone"),
+                country=payer_info.get("country"),
+                event_source_url=str(request.url),
+            )
+        except Exception as e:
+            # Nunca dejamos que un fallo en tracking rompa el redirect al cliente.
+            logger.error(f"Failed to send Meta Purchase event: {e}")
+
+        if settings.upsell_success_url:
+            return RedirectResponse(url=settings.upsell_success_url)
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=True,
+                message="Tu extensión de 3 meses ya quedó sumada a la mentoría. ¡Nos vemos adentro!"
+            )
+        )
+
+    # Si el cobro falló pero dLocal nos dio un link para reintentar manualmente,
+    # priorizamos llevar al cliente ahí (puede pagar con otra tarjeta/método).
+    if result.redirect_url:
+        logger.info(
+            f"Upsell {status_upper} for payment {payment_id}, "
+            f"redirecting customer to dLocal retry URL"
+        )
+        return RedirectResponse(url=result.redirect_url)
+
+    # Cobro falló sin opción de retry
+    logger.warning(f"Upsell failed for payment {payment_id}, status={status_upper}")
+    if settings.upsell_error_url:
+        return RedirectResponse(url=settings.upsell_error_url)
+    return HTMLResponse(
+        _render_upsell_fallback_html(
+            success=False,
+            message="No pudimos procesar el cobro de la extensión. Tu compra principal sigue activa."
+        ),
+        status_code=200,
+    )
+
+
+@app.get(
+    "/api/upsell/confirm/{merchant_checkout_token}",
+    response_model=UpsellResponse,
+    tags=["Upsell"],
+)
+async def confirm_upsell_get(
+    merchant_checkout_token: str,
+    amount: Optional[float] = None,
+    description: Optional[str] = None,
+    order_id: Optional[str] = None,
+    installments: Optional[int] = None,
+):
+    """
+    Confirma el cobro de un One-Click Upsell usando GET con query params.
+
+    Versión "simple" del endpoint para llamar desde la success page con un
+    `<a href>` o un `fetch` sin body. Funcionalmente idéntico al POST.
+
+    Query params (todos opcionales):
+    - **amount**: override del monto (default: UPSELL_AMOUNT del .env)
+    - **description**: override de la descripción (default: UPSELL_DESCRIPTION)
+    - **order_id**: order id custom (default: se autogenera)
+    - **installments**: (EXPERIMENTAL) cantidad de cuotas a cobrar el upsell.
+      dLocal Go no documenta cuotas para upsells, lo mandamos igual y vemos
+      si lo respeta. Si no funciona, omitir el parámetro.
+
+    Ejemplo:
+        GET /api/upsell/confirm/abc123token
+        GET /api/upsell/confirm/abc123token?installments=3
+
+    Si el cobro one-click falla, la respuesta incluye un `redirect_url` para que
+    el cliente complete el pago con otro método.
+    """
+    return await _process_upsell_confirmation(
+        merchant_checkout_token=merchant_checkout_token,
+        amount=amount,
+        description=description,
+        order_id=order_id,
+        installments=installments,
+    )
 
 
 @app.get("/api/payment/{payment_id}", tags=["Payments"])

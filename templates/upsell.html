@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>¡Felicitaciones! — Mentoría León</title>
+
+{# Google Fonts: Bricolage Grotesque para titulares #}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&display=swap" rel="stylesheet">
+
+{% if meta_pixel_id %}
+{# ============================================
+   META PIXEL — base code + ViewContent del upsell
+   ============================================ #}
+<script>
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '{{ meta_pixel_id }}');
+  fbq('track', 'PageView');
+  fbq('track', 'ViewContent', {
+    content_name: 'Upsell Extension 3 meses',
+    content_category: 'upsell',
+    value: {{ upsell_amount }},
+    currency: 'USD'
+  });
+</script>
+<noscript>
+  <img height="1" width="1" style="display:none"
+    src="https://www.facebook.com/tr?id={{ meta_pixel_id }}&ev=PageView&noscript=1"/>
+</noscript>
+{% endif %}
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-page:        #000000;
+    --bg-card:        #0a0612;
+    --bg-card-soft:   #1a0d2e;
+    --bg-btn-sec:     #161616;
+    --border-card:    #7C6BB5;
+    --violet:         #B19CD9;
+    --violet-light:   #C7B3E5;
+    --violet-deep:    #1a0d2e;
+    --violet-muted:   #998BB5;
+    --text-white:     #ffffff;
+    --text-body:      #b8b8b8;
+    --text-muted:     #888888;
+    --text-faint:     #666666;
+    --display: 'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, sans-serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background:
+      radial-gradient(ellipse 100% 80% at 50% 40%, rgba(124, 107, 181, 0.30) 0%, transparent 70%),
+      #000000;
+    background-attachment: fixed;
+    color: var(--text-white);
+    font-family: var(--sans);
+    line-height: 1.5;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 64px 24px 96px;
+    text-align: center;
+  }
+
+  .hero { margin-bottom: 48px; }
+
+  .hero-eyebrow {
+    color: var(--text-body);
+    font-size: 16px;
+    font-weight: 400;
+    margin-bottom: 4px;
+  }
+
+  .hero-title {
+    font-family: var(--display);
+    color: var(--text-white);
+    font-size: 64px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+  }
+
+  .hero-subtitle {
+    color: var(--text-white);
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.3;
+    letter-spacing: -0.3px;
+  }
+
+  .oto { margin-top: 8px; }
+
+  .oto-card {
+    position: relative;
+    background: var(--bg-card);
+    border: 2px solid var(--border-card);
+    border-radius: 20px;
+    padding: 44px 44px 36px;
+    text-align: center;
+    max-width: 720px;
+    margin: 0 auto;
+    box-shadow:
+      0 0 80px rgba(177, 156, 217, 0.18),
+      inset 0 0 0 1px rgba(177, 156, 217, 0.12);
+  }
+
+  .oto-stamp {
+    position: absolute;
+    top: -24px;
+    right: -24px;
+    width: 130px;
+    height: 130px;
+    transform: rotate(-12deg);
+    pointer-events: none;
+  }
+
+  .oto-eyebrow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  .oto-eyebrow-line {
+    flex: 1;
+    max-width: 80px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--violet-light));
+  }
+
+  .oto-eyebrow-line.right {
+    background: linear-gradient(270deg, transparent, var(--violet-light));
+  }
+
+  .oto-eyebrow-text {
+    color: var(--violet-light);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 2.5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+  }
+
+  .oto-eyebrow-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--violet-light);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--violet-light);
+    animation: dotPulse 1.8s ease-in-out infinite;
+  }
+
+  .eyebrow-mobile  { display: none; }
+  .eyebrow-desktop { display: inline; }
+
+  @keyframes dotPulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.85); }
+  }
+
+  .oto-title {
+    font-family: var(--display);
+    color: var(--text-white);
+    font-size: 38px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: -1px;
+    margin-bottom: 20px;
+  }
+
+  .oto-text {
+    color: var(--text-body);
+    font-size: 17px;
+    line-height: 1.6;
+    margin-bottom: 14px;
+    max-width: 580px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .oto-text:last-of-type { margin-bottom: 32px; }
+
+  .accent-white  { color: var(--text-white); font-weight: 500; }
+  .accent-violet { color: var(--violet-light); font-weight: 600; }
+
+  .oto-price-box {
+    background: linear-gradient(180deg, rgba(177, 156, 217, 0.10) 0%, rgba(177, 156, 217, 0.04) 100%);
+    border: 1px solid rgba(177, 156, 217, 0.35);
+    border-radius: 14px;
+    padding: 24px 22px 22px;
+    margin-bottom: 24px;
+  }
+
+  .oto-price-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .oto-months-tile {
+    background: rgba(177, 156, 217, 0.18);
+    border: 1px solid rgba(177, 156, 217, 0.5);
+    border-radius: 12px;
+    padding: 12px 22px;
+    color: var(--violet-light);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.1;
+    text-align: center;
+  }
+
+  .oto-months-tile small {
+    display: block;
+    font-size: 11px;
+    color: var(--violet-muted);
+    font-weight: 400;
+    margin-top: 3px;
+  }
+
+  .oto-price-side  { text-align: left; }
+
+  .oto-price-label {
+    color: var(--text-muted);
+    font-size: 11px;
+    letter-spacing: 0.8px;
+    margin-bottom: 4px;
+  }
+
+  .oto-price-value {
+    color: var(--text-white);
+    font-size: 44px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.8px;
+  }
+
+  .oto-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--violet-light);
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    padding: 9px 16px;
+    background: rgba(177, 156, 217, 0.08);
+    border: 1px solid rgba(177, 156, 217, 0.2);
+    border-radius: 22px;
+    letter-spacing: 0.3px;
+  }
+
+  .oto-timer svg { display: block; }
+
+  .oto-timer-value {
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-white);
+  }
+
+  .oto-timer.expired { opacity: 0.5; }
+
+  .oto-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+
+  .oto-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    max-width: 460px;
+    padding: 22px 28px;
+    border: none;
+    border-radius: 18px;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+    letter-spacing: 0.2px;
+  }
+
+  .oto-btn-primary {
+    background: var(--violet);
+    color: var(--violet-deep);
+    animation: pulse-violeta 1.6s infinite;
+    box-shadow: 0 0 21px -6px var(--violet);
+  }
+
+  .oto-btn-primary:hover {
+    background: var(--violet-light);
+    transform: translateY(-2px);
+  }
+
+  @keyframes pulse-violeta {
+    0%   { box-shadow: 0 0 0 0 rgba(177, 156, 217, 0.7); }
+    70%  { box-shadow: 0 0 0 22px rgba(177, 156, 217, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(177, 156, 217, 0); }
+  }
+
+  .oto-btn-secondary {
+    background: var(--bg-btn-sec);
+    color: var(--text-white);
+    font-size: 16px;
+    border: 1px solid #2a2a2a;
+  }
+
+  .oto-btn-secondary:hover {
+    background: #1f1f1f;
+    border-color: #3a3a3a;
+  }
+
+  .oto-footer {
+    color: var(--violet-light);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.3px;
+    opacity: 0.78;
+  }
+
+  @media (max-width: 768px) {
+    .page { padding: 40px 16px 64px; }
+
+    .hero { margin-bottom: 32px; }
+    .hero-title    { font-size: 52px; letter-spacing: -1.5px; }
+    .hero-subtitle { font-size: 22px; }
+
+    .oto-card { padding: 36px 24px 28px; border-radius: 18px; }
+
+    .oto-stamp {
+      width: 100px;
+      height: 100px;
+      top: -16px;
+      right: -16px;
+    }
+
+    .oto-eyebrow-line { max-width: 36px; }
+    .oto-eyebrow-text { font-size: 11px; letter-spacing: 1.8px; }
+
+    .eyebrow-desktop { display: none; }
+    .eyebrow-mobile  { display: inline; }
+
+    .oto-title { font-size: 32px; }
+    .oto-text  { font-size: 16px; }
+
+    .oto-price-box { padding: 26px 16px 20px; }
+
+    .oto-price-row {
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .oto-price-side  { text-align: center; }
+    .oto-price-value { font-size: 38px; }
+
+    .oto-btn {
+      padding: 19px 22px;
+      font-size: 16px;
+      max-width: 100%;
+    }
+
+    .oto-btn-secondary { font-size: 15px; }
+  }
+
+  @media (max-width: 420px) {
+    .hero-title    { font-size: 44px; }
+    .hero-subtitle { font-size: 19px; }
+
+    .oto-card { padding: 32px 18px 24px; }
+    .oto-title { font-size: 28px; }
+
+    .oto-eyebrow-text { font-size: 10.5px; letter-spacing: 1.5px; }
+  }
+</style>
+</head>
+<body>
+
+  <main class="page">
+
+    <section class="hero">
+      <h1 class="hero-title">¡Felicitaciones!</h1>
+      <p class="hero-eyebrow">Te acabás de meter en el juego de los grandes.</p>
+    </section>
+
+    <section class="oto">
+      <div class="oto-card">
+
+        <svg class="oto-stamp" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+          <circle cx="60" cy="60" r="50" stroke="#C7B3E5" stroke-width="2" stroke-opacity="0.7" fill="none"/>
+          <circle cx="60" cy="60" r="44" stroke="#C7B3E5" stroke-width="1" stroke-opacity="0.45" fill="none" stroke-dasharray="2 3"/>
+          <text x="60" y="56" text-anchor="middle" fill="#C7B3E5" font-family="-apple-system, sans-serif" font-size="11" font-weight="500" letter-spacing="2.5">SOLO</text>
+          <text x="60" y="74" text-anchor="middle" fill="#C7B3E5" font-family="-apple-system, sans-serif" font-size="14" font-weight="500" letter-spacing="2">UNA VEZ</text>
+        </svg>
+
+        <div class="oto-eyebrow">
+          <div class="oto-eyebrow-line"></div>
+          <div class="oto-eyebrow-text">
+            <span class="oto-eyebrow-dot"></span>
+            <span class="eyebrow-desktop">ESPERA · SOLO POR ESTA VEZ</span>
+            <span class="eyebrow-mobile">ESPERA · SOLO POR HOY</span>
+          </div>
+          <div class="oto-eyebrow-line right"></div>
+        </div>
+
+        <h2 class="oto-title">Pero antes… préstame atención acá</h2>
+
+        <p class="oto-text">
+          Es la <span class="accent-white">única vez</span> que vas a tener esta oportunidad.
+        </p>
+        <p class="oto-text">
+          Por ingresar dentro de las <span class="accent-violet">primeras 300 personas</span>, tenés la posibilidad de extender tu estadía en la Mentoría León por <span class="accent-violet">3 meses extras</span>.
+        </p>
+
+        <div class="oto-price-box">
+          <div class="oto-price-row">
+            <div class="oto-months-tile">
+              +3 meses
+              <small>extras</small>
+            </div>
+            <div class="oto-price-side">
+              <div class="oto-price-label">UN PAGO ÚNICO DE</div>
+              <div class="oto-price-value">USD ${{ '%g' % upsell_amount }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="oto-timer" id="otoTimer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>Esta oferta expira en</span>
+          <span class="oto-timer-value" id="otoTimerValue">10:00</span>
+        </div>
+
+        <div class="oto-buttons">
+          {# Botón "Sí" → endpoint que hace el cobro one-click. El payment_id viene del path. #}
+          <a id="upsellAcceptBtn"
+             href="/api/upsell/click/{{ payment_id }}"
+             class="oto-btn oto-btn-primary">Sí, sumar 3 meses</a>
+
+          <a id="upsellDeclineBtn"
+             href="{{ decline_url }}"
+             class="oto-btn oto-btn-secondary">No, gracias</a>
+        </div>
+
+        <div class="oto-footer">⚠ Esta oferta no volverá a aparecer.</div>
+
+      </div>
+    </section>
+
+  </main>
+
+<script>
+  // ============================================
+  // TIMER — countdown 10 min con persistencia
+  // ============================================
+  (function () {
+    var DURATION_MS = 10 * 60 * 1000;
+    var STORAGE_KEY = 'oto_leon_end_time_{{ payment_id }}';
+
+    var valueEl = document.getElementById('otoTimerValue');
+    var timerEl = document.getElementById('otoTimer');
+    if (!valueEl || !timerEl) return;
+
+    var endTime;
+    try {
+      var stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        endTime = parseInt(stored, 10);
+      } else {
+        endTime = Date.now() + DURATION_MS;
+        localStorage.setItem(STORAGE_KEY, String(endTime));
+      }
+    } catch (err) {
+      endTime = Date.now() + DURATION_MS;
+    }
+
+    function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+    function tick() {
+      var remaining = endTime - Date.now();
+      if (remaining <= 0) {
+        valueEl.textContent = '00:00';
+        timerEl.classList.add('expired');
+        clearInterval(intervalId);
+        return;
+      }
+      var totalSeconds = Math.floor(remaining / 1000);
+      var minutes = Math.floor(totalSeconds / 60);
+      var seconds = totalSeconds % 60;
+      valueEl.textContent = pad(minutes) + ':' + pad(seconds);
+    }
+
+    tick();
+    var intervalId = setInterval(tick, 1000);
+  })();
+
+  {% if meta_pixel_id %}
+  // ============================================
+  // META PIXEL — InitiateCheckout al hacer clic en "Sí"
+  // ============================================
+  (function () {
+    var btn = document.getElementById('upsellAcceptBtn');
+    if (!btn || typeof fbq !== 'function') return;
+    btn.addEventListener('click', function () {
+      try {
+        fbq('track', 'InitiateCheckout', {
+          content_name: 'Upsell Extension 3 meses',
+          content_category: 'upsell',
+          value: {{ upsell_amount }},
+          currency: 'USD'
+        });
+      } catch (err) { /* silently ignore */ }
+    });
+  })();
+  {% endif %}
+</script>
+
+</body>
+</html>

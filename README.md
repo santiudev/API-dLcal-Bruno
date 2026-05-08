@@ -14,6 +14,7 @@ API backend profesional para procesar pagos de **Mentoría León** con dLocal Go
 - ✅ **Reenvío a webhook de terceros** (AutomatiChat, etc.)
 - ✅ **Redirect URLs configurables** para páginas de éxito/error
 - ✅ **Branding personalizable** en el checkout de dLocal
+- ✅ **One-Click Upsell (One Time Offer)**: cobro extra one-click después del pago principal sin volver a pedir datos de tarjeta (ventana de 15 minutos)
 
 ## 🏗️ Stack Tecnológico
 
@@ -96,6 +97,13 @@ APP_BASE_URL=http://localhost:8001  # En producción: https://tu-dominio.com
 MERCHANT_NAME=Mentoría León
 PAYMENT_DESCRIPTION=Mentoría León
 
+# One-Click Upsell (One Time Offer)
+# Requiere que dLocal Go habilite la feature en la cuenta del merchant.
+# Cuando UPSELL_ENABLED=true, el checkout solo permite tarjetas de crédito/débito.
+UPSELL_ENABLED=true
+UPSELL_AMOUNT=197
+UPSELL_DESCRIPTION=Mentoría León - Extensión de 3 meses
+
 # Application Settings
 ENVIRONMENT=development
 LOG_LEVEL=INFO
@@ -160,7 +168,113 @@ POST /api/webhook/dlocal
 
 Endpoint para recibir notificaciones de dLocal automáticamente.
 
-### 5. Documentación Interactiva
+### 5. One-Click Upsell (One Time Offer)
+
+Cuando `UPSELL_ENABLED=true` está activo en `.env`, todos los checkouts se crean con `allow_upsell: true`. La respuesta del create payment incluye un `merchant_checkout_token`:
+
+```json
+{
+  "payment_id": "DP-123456",
+  "redirect_url": "https://checkout.dlocalgo.com/...",
+  "status": "PENDING",
+  "amount": 702.0,
+  "currency": "USD",
+  "installments": 6,
+  "merchant_checkout_token": "abc123..."
+}
+```
+
+> ⚠️ Con upsell habilitado, el checkout **solo permite tarjetas de crédito/débito** (no efectivo, no transferencia). Es una limitación de dLocal Go.
+
+Después del pago exitoso, dLocal redirige al cliente al `success_url` (página de Bruno con la oferta upsell). Si acepta, hay que pegarle a uno de estos dos endpoints **dentro de los 15 minutos** del pago original:
+
+#### POST `/api/upsell/confirm/{merchant_checkout_token}`
+Body opcional para overridear los valores fijos de `.env`:
+```json
+{ "amount": 197, "description": "Extensión de 3 meses", "order_id": "TEST_OTO_1", "installments": 3 }
+```
+
+#### GET `/api/upsell/confirm/{merchant_checkout_token}?amount=197&description=...&order_id=...&installments=3`
+Versión simple (todos los query params opcionales). Útil para disparar el cobro desde un `<a href>` o un fetch sin body.
+
+> 🧪 **`installments` es experimental**: dLocal Go no documenta cuotas para el endpoint de upsell. Si el cobro falla con `installments > 1`, hay que cobrar el upsell en 1 sola cuota (omitir el parámetro).
+
+#### GET `/api/upsell/click/{payment_id}` — endpoint para el botón de la landing
+
+Endpoint pensado específicamente para que sea el destino del botón **"Sí, sumar 3 meses"** (o equivalente) en la página de upsell. Recibe el `payment_id` que dLocal mete automáticamente en el query string del `success_url` y se encarga de todo:
+
+1. Busca el `merchant_checkout_token` consultando el payment a dLocal
+2. Cobra el upsell con los valores fijos de `.env` (`UPSELL_AMOUNT`, `UPSELL_DESCRIPTION`)
+3. Redirige al cliente:
+   - **Si paga OK** → `UPSELL_SUCCESS_URL` (o página HTML de éxito si no está seteada)
+   - **Si falla con retry posible** → `redirect_url` que devuelve dLocal (cliente reintenta con otra tarjeta)
+   - **Si falla sin retry** → `UPSELL_ERROR_URL` (o página HTML de error si no está seteada)
+
+#### GET `/upsell/{payment_id}` — página HTML de la oferta (servida desde la API)
+
+La API sirve directamente la página de upsell con el diseño completo (oscuro/violeta con timer y sello "SOLO UNA VEZ"). El template renderiza con los datos del cobro y los botones ya cableados.
+
+**Para que dLocal redirija al cliente acá después del pago principal, configurá:**
+
+```env
+DLOCAL_SUCCESS_URL=https://dlocal.brunoelleon.com/upsell
+```
+
+dLocal automáticamente le agrega `?payment_id=...&status=PAID&order_id=...` al final, y la API levanta el `payment_id` del query para renderizar la oferta correcta.
+
+> Si el pago original no fue exitoso (status ≠ PAID), la página automáticamente redirige al `UPSELL_DECLINE_URL` — no tiene sentido ofrecer un upsell sobre un cobro que no se completó.
+
+#### Personalizar la página
+
+Variables del `.env`:
+
+```env
+UPSELL_AMOUNT=197                                  # Precio que se muestra
+UPSELL_DESCRIPTION=Mentoría León - Extensión 3 meses
+UPSELL_DECLINE_URL=https://bruno.11demayo.com/graciasn   # Botón "No, gracias"
+UPSELL_SUCCESS_URL=https://...                     # Después del cobro OK
+UPSELL_ERROR_URL=https://...                       # Después de cobro fallido sin retry
+```
+
+Si querés cambiar el copy del título/textos, editar directo en `templates/upsell.html`.
+
+### 6. Meta Pixel + Conversions API
+
+Tracking dual: **Pixel del lado cliente** (PageView, ViewContent, InitiateCheckout) + **Conversions API server-side** (Purchase) para deduplicación y robustez contra ad-blockers.
+
+```env
+META_PIXEL_ID=3592174154252037
+META_ACCESS_TOKEN=EAAU...   # IMPORTANTE: secreto, nunca commitearlo
+```
+
+Eventos disparados automáticamente:
+
+| Evento | Lado | Cuándo |
+|---|---|---|
+| `PageView` | Cliente | Al cargar `/upsell/{id}` |
+| `ViewContent` | Cliente | Al cargar `/upsell/{id}` con `value=197, currency=USD` |
+| `InitiateCheckout` | Cliente | Al hacer clic en "Sí, sumar 3 meses" |
+| `Purchase` | Server (CAPI) | Cuando dLocal confirma el cobro como `PAID` |
+
+El `event_id` del `Purchase` es el `payment_id` del upsell devuelto por dLocal, así que es estable y deduplicable.
+
+**Respuesta** (igual en ambos):
+```json
+{
+  "payment_id": "DP-789012",
+  "status": "PAID",
+  "amount": 97.0,
+  "currency": "USD",
+  "description": "Mentoría León - Bonus OTO",
+  "order_id": "upsell_abc123",
+  "merchant_checkout_token": "abc123...",
+  "redirect_url": null
+}
+```
+
+Si el cobro one-click falla (tarjeta rechazada, etc.), `redirect_url` viene con un link al checkout de dLocal para que el cliente complete el pago con otro método.
+
+### 6. Documentación Interactiva
 
 Una vez corriendo, visita:
 - Swagger UI: `http://localhost:8001/docs`
@@ -230,6 +344,21 @@ curl "http://localhost:8001/api/pago?tel=5255123456789&country=MX&type=contado"
 ### Probar Webhook Manualmente
 ```bash
 curl -X POST http://localhost:8001/debug/test-webhook?payment_id=TEST123&status=PAID
+```
+
+### Probar One-Click Upsell
+```bash
+# 1) Crear el checkout principal y guardar el merchant_checkout_token de la respuesta
+curl "http://localhost:8001/api/pago?country=AR&type=plan6"
+
+# 2) Después de pagar el checkout, confirmar el upsell (≤ 15 min)
+# Opción A: GET (rápido para probar)
+curl "http://localhost:8001/api/upsell/confirm/{TOKEN_DEL_PASO_1}"
+
+# Opción B: POST con overrides
+curl -X POST "http://localhost:8001/api/upsell/confirm/{TOKEN_DEL_PASO_1}" \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 50, "description": "Bonus pack", "order_id": "TEST_OTO_1"}'
 ```
 
 ## 📞 Soporte
