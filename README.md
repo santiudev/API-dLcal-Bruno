@@ -300,15 +300,25 @@ AB_TEST_DATA_PATH=/data/ab_test_stats.json   # En Render: requiere Disk montado 
 
 URL: `https://dlocal.brunoelleon.com/admin/ab-test/stats` — el browser pide usuario/password.
 
-Métricas que muestra:
-- **Vistas, compras, conversion rate, revenue total** y **revenue per visitor** por variante
+Métricas que muestra **por variante**:
+- **Vistas** — entró a la página de upsell
+- **Compras** — clickeó "Sí" Y el cobro fue PAID
+- **Rechazos** — clickeó explícitamente "No, gracias"
+- **Sin acción** — vio la página y cerró la pestaña sin elegir nada (calculado: `vistas - compras - rechazos`)
+- **Conversion rate, decline rate, revenue total, revenue per visitor**
+
+Métricas globales:
 - **Ganador por revenue per visitor** (la métrica correcta para A/B de precios — un precio bajo puede convertir más pero rendir menos plata)
 - **Confianza estadística** vía z-test de dos proporciones (recién a partir de ~95% se considera confiable)
+
+Cómo interpretar:
+- **Decline rate alto** → el precio se percibe caro (la oferta no convence)
+- **Sin acción alto** → el copy o el diseño no enganchan (ni siquiera consideran responder)
 
 Endpoints relacionados:
 - `GET /admin/ab-test/stats` → dashboard HTML
 - `GET /admin/ab-test/stats.json` → mismo summary en JSON (útil para scripts)
-- `POST /admin/ab-test/reset` → resetea los counters a cero (cuando empezás un test nuevo)
+- `POST /admin/ab-test/reset` → resetea TODOS los counters a cero (también disponible como botón "↻ RESET TOTAL" en el dashboard, con doble confirmación — pensado para limpiar después de QA antes de salir a producción real)
 
 Si `ADMIN_USERNAME`/`PASSWORD` no están seteados, los endpoints devuelven `503` (acceso deshabilitado por seguridad).
 

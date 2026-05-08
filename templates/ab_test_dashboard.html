@@ -45,7 +45,13 @@
   .wrap { max-width: 1080px; margin: 0 auto; }
 
   /* Header */
-  .header { margin-bottom: 40px; }
+  .header {
+    margin-bottom: 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+  }
 
   .header-eyebrow {
     color: var(--violet-light);
@@ -67,6 +73,34 @@
     color: var(--text-muted);
     font-size: 14px;
     font-family: var(--mono);
+  }
+
+  /* Reset button — danger zone, intencionalmente discreto pero accesible */
+  .reset-btn {
+    flex-shrink: 0;
+    margin-top: 8px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .reset-btn:hover {
+    border-color: var(--red);
+    color: var(--red);
+    background: rgba(248, 113, 113, 0.05);
+  }
+
+  .reset-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   /* Winner banner */
@@ -243,17 +277,17 @@
     letter-spacing: 0;
   }
 
-  /* Secondary metrics row */
+  /* Secondary metrics row — 2 filas de 3 para dar espacio a declines + abandono */
   .metrics-secondary {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
   }
 
   .metric-secondary {
     background: rgba(255, 255, 255, 0.02);
     border-radius: 10px;
-    padding: 12px;
+    padding: 12px 8px;
     text-align: center;
   }
 
@@ -270,6 +304,11 @@
     font-size: 16px;
     font-weight: 600;
   }
+
+  /* Tinte semántico para distinguir compras (verde) vs rechazos (rojo) */
+  .metric-secondary.is-good .metric-secondary-value { color: var(--green); }
+  .metric-secondary.is-bad  .metric-secondary-value { color: var(--red); }
+  .metric-secondary.is-soft .metric-secondary-value { color: var(--text-muted); }
 
   /* Comparison row */
   .comparison {
@@ -372,12 +411,15 @@
   <div class="wrap">
 
     <header class="header">
-      <div class="header-eyebrow">A/B TEST · UPSELL DE EXTENSIÓN</div>
-      <h1 class="header-title">Resultados</h1>
-      <div class="header-meta">
-        Test iniciado: {{ started_at_str }}
-        {% if last_event_at_str %} · Último evento: {{ last_event_at_str }}{% endif %}
+      <div>
+        <div class="header-eyebrow">A/B TEST · UPSELL DE EXTENSIÓN</div>
+        <h1 class="header-title">Resultados</h1>
+        <div class="header-meta">
+          Test iniciado: {{ started_at_str }}
+          {% if last_event_at_str %} · Último evento: {{ last_event_at_str }}{% endif %}
+        </div>
       </div>
+      <button id="resetBtn" class="reset-btn" type="button">↻ RESET TOTAL</button>
     </header>
 
     {% set total_views = variants.A.views + variants.B.views %}
@@ -447,9 +489,21 @@
                 <div class="metric-secondary-label">VISTAS</div>
                 <div class="metric-secondary-value">{{ d.views }}</div>
               </div>
-              <div class="metric-secondary">
+              <div class="metric-secondary is-good">
                 <div class="metric-secondary-label">COMPRAS</div>
                 <div class="metric-secondary-value">{{ d.purchases }}</div>
+              </div>
+              <div class="metric-secondary is-bad">
+                <div class="metric-secondary-label">RECHAZOS</div>
+                <div class="metric-secondary-value">{{ d.declines }}</div>
+              </div>
+              <div class="metric-secondary is-soft">
+                <div class="metric-secondary-label">SIN ACCIÓN</div>
+                <div class="metric-secondary-value">{{ d.no_action }}</div>
+              </div>
+              <div class="metric-secondary">
+                <div class="metric-secondary-label">DECLINE %</div>
+                <div class="metric-secondary-value">{{ '%.1f'|format(d.decline_rate * 100) }}%</div>
               </div>
               <div class="metric-secondary">
                 <div class="metric-secondary-label">REVENUE</div>
@@ -463,8 +517,11 @@
       {# ---- COMPARISON BARS ---- #}
       {% set max_views = [variants.A.views, variants.B.views]|max %}
       {% set max_purchases = [variants.A.purchases, variants.B.purchases]|max %}
+      {% set max_declines = [variants.A.declines, variants.B.declines]|max %}
+      {% set max_no_action = [variants.A.no_action, variants.B.no_action]|max %}
       {% set max_revenue = [variants.A.revenue, variants.B.revenue]|max %}
       {% set max_cr = [variants.A.conversion_rate, variants.B.conversion_rate]|max %}
+      {% set max_dr = [variants.A.decline_rate, variants.B.decline_rate]|max %}
       {% set max_rpv = [variants.A.revenue_per_visitor, variants.B.revenue_per_visitor]|max %}
 
       <div class="comparison">
@@ -494,7 +551,10 @@
 
         {{ bar('Vistas', variants.A.views, variants.B.views, max_views) }}
         {{ bar('Compras', variants.A.purchases, variants.B.purchases, max_purchases) }}
+        {{ bar('Rechazos (No, gracias)', variants.A.declines, variants.B.declines, max_declines) }}
+        {{ bar('Sin acción', variants.A.no_action, variants.B.no_action, max_no_action) }}
         {{ bar('Conversion rate', variants.A.conversion_rate, variants.B.conversion_rate, max_cr, is_pct=True) }}
+        {{ bar('Decline rate', variants.A.decline_rate, variants.B.decline_rate, max_dr, is_pct=True) }}
         {{ bar('Revenue total', variants.A.revenue, variants.B.revenue, max_revenue, fmt='%.2f', is_money=True) }}
         {{ bar('Revenue per visitor', variants.A.revenue_per_visitor, variants.B.revenue_per_visitor, max_rpv, fmt='%.2f', is_money=True) }}
       </div>
@@ -505,6 +565,12 @@
         Esto es lo correcto en A/B test de precios: a veces un precio más bajo convierte más
         pero igual rinde menos plata por visitante. Lo que importa al final es cuánto se factura.<br><br>
 
+        <strong>Vistas / Compras / Rechazos / Sin acción:</strong>
+        Vistas = entró a la página. Compras = clickeó "Sí" Y el cobro fue PAID.
+        Rechazos = clickeó explícitamente "No, gracias". Sin acción = cerró la pestaña sin elegir.
+        Un decline rate alto puede indicar que el precio se percibe caro; un "sin acción" alto
+        puede indicar que el copy o el diseño no convencen.<br><br>
+
         <strong>Confianza estadística:</strong> z-test de dos proporciones sobre el conversion rate.
         Recién a partir de ~95% se considera confiable. Con &lt;100 vistas por variante,
         cualquier conclusión es prematura.
@@ -512,5 +578,46 @@
 
     {% endif %}
   </div>
+
+  <script>
+    // Reset total — borra TODAS las stats. Diseñado para limpiar después de QA,
+    // antes de salir a producción real. Pide doble confirmación a propósito.
+    (function () {
+      var btn = document.getElementById('resetBtn');
+      if (!btn) return;
+
+      btn.addEventListener('click', async function () {
+        var ok1 = window.confirm(
+          '¿Resetear TODAS las estadísticas del A/B test?\n\n' +
+          'Esto borra vistas, compras, rechazos y revenue de ambas variantes.\n' +
+          'No se puede deshacer.'
+        );
+        if (!ok1) return;
+
+        var ok2 = window.confirm(
+          'Última confirmación: vas a borrar TODA la data del test.\n¿Seguro?'
+        );
+        if (!ok2) return;
+
+        btn.disabled = true;
+        btn.textContent = '... reseteando';
+
+        try {
+          // El browser reusa las credenciales del Basic Auth con el que entraste
+          // a esta página. credentials:'same-origin' lo asegura en cross-fetch.
+          var res = await fetch('/admin/ab-test/reset', {
+            method: 'POST',
+            credentials: 'same-origin',
+          });
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          window.location.reload();
+        } catch (err) {
+          alert('Falló el reset: ' + err.message);
+          btn.disabled = false;
+          btn.textContent = '↻ RESET TOTAL';
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

@@ -783,6 +783,44 @@ async def render_upsell_page(request: Request, payment_id: str):
 
 
 @app.get(
+    "/api/upsell/decline/{payment_id}",
+    tags=["Upsell"],
+    summary="Endpoint para el botón 'No, gracias' de la página de upsell",
+)
+async def upsell_decline_redirect(payment_id: str):
+    """
+    Endpoint para el botón "No, gracias" — registra el rechazo en las stats
+    del A/B test y redirige al cliente al UPSELL_DECLINE_URL configurado.
+
+    El registro del decline es best-effort: si falla por cualquier razón,
+    igual redirigimos al cliente para no romper su experiencia.
+    """
+    from fastapi.responses import RedirectResponse
+
+    decline_url = settings.upsell_decline_url or "/"
+
+    # Best-effort: intentamos registrar el decline, pero si falla redirigimos igual.
+    try:
+        cache_entry = upsell_cache.get_by_payment_id(payment_id)
+        if cache_entry:
+            ab_variant = cache_entry.get("ab_variant")
+            ab_test_stats.record_decline(ab_variant)
+            logger.info(
+                f"Upsell DECLINED for payment {payment_id} "
+                f"(ab_variant={ab_variant or '-'}) → redirecting to decline URL"
+            )
+        else:
+            logger.warning(
+                f"Upsell decline registered but payment_id={payment_id} not in cache "
+                f"(server restart o >30 min); decline will not be counted in stats"
+            )
+    except Exception as e:
+        logger.error(f"Failed to record decline for payment {payment_id}: {e}")
+
+    return RedirectResponse(url=decline_url)
+
+
+@app.get(
     "/api/upsell/click/{payment_id}",
     tags=["Upsell"],
     summary="Endpoint para el botón 'Sí, sumar 3 meses' de la página de upsell",

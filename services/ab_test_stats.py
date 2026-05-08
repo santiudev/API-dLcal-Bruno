@@ -23,16 +23,43 @@ from typing import Any, Dict, Optional
 logger = logging.getLogger(__name__)
 
 
+def _empty_variant() -> Dict[str, Any]:
+    """Counters por variante. Mantener sincronizado con `_migrate_state()`."""
+    return {
+        "views": 0,        # entró a la página de upsell
+        "purchases": 0,    # cliqueó "Sí, sumar 3 meses" Y el cobro fue PAID
+        "declines": 0,     # cliqueó explícitamente "No, gracias"
+        "revenue": 0.0,
+    }
+
+
 def _empty_state() -> Dict[str, Any]:
     """Estructura inicial vacía del archivo de stats."""
     return {
         "started_at": time.time(),
         "last_event_at": None,
         "variants": {
-            "A": {"views": 0, "purchases": 0, "revenue": 0.0},
-            "B": {"views": 0, "purchases": 0, "revenue": 0.0},
+            "A": _empty_variant(),
+            "B": _empty_variant(),
         },
     }
+
+
+def _migrate_state(state: Dict[str, Any]) -> Dict[str, Any]:
+    """Asegura que el state cargado de disco tenga los campos nuevos.
+
+    Cuando agregamos campos (ej: 'declines'), los archivos viejos en disco
+    no los tienen. Acá los rellenamos con defaults sin perder data anterior.
+    """
+    state.setdefault("started_at", time.time())
+    state.setdefault("last_event_at", None)
+    state.setdefault("variants", {})
+    for variant_key in ("A", "B"):
+        existing = state["variants"].get(variant_key, {})
+        merged = _empty_variant()
+        merged.update({k: existing[k] for k in existing if k in merged})
+        state["variants"][variant_key] = merged
+    return state
 
 
 class ABTestStats:
@@ -48,7 +75,11 @@ class ABTestStats:
     # Persistencia
     # -----------------------------
     def _load(self) -> None:
-        """Carga el state desde disco. Si no existe o está corrupto, arranca limpio."""
+        """Carga el state desde disco. Si no existe o está corrupto, arranca limpio.
+
+        Aplica migración para agregar campos nuevos a archivos viejos sin
+        perder los counts ya acumulados.
+        """
         if not self.data_path.exists():
             logger.info(
                 f"AB test stats file not found at {self.data_path}, starting fresh"
@@ -57,14 +88,8 @@ class ABTestStats:
         try:
             with open(self.data_path, "r", encoding="utf-8") as f:
                 loaded = json.load(f)
-            # Validar estructura mínima
-            if "variants" in loaded and "A" in loaded["variants"] and "B" in loaded["variants"]:
-                self._state = loaded
-                logger.info(f"AB test stats loaded from {self.data_path}")
-            else:
-                logger.warning(
-                    f"AB test stats file at {self.data_path} has unexpected schema, ignoring"
-                )
+            self._state = _migrate_state(loaded)
+            logger.info(f"AB test stats loaded from {self.data_path}")
         except (json.JSONDecodeError, OSError) as e:
             logger.error(f"Could not load AB test stats from {self.data_path}: {e}")
 
@@ -104,6 +129,15 @@ class ABTestStats:
             self._state["last_event_at"] = time.time()
             self._save_unsafe()
 
+    def record_decline(self, variant: Optional[str]) -> None:
+        """Suma un click explícito en 'No, gracias' al contador de la variante."""
+        if variant not in ("A", "B"):
+            return
+        with self._lock:
+            self._state["variants"][variant]["declines"] += 1
+            self._state["last_event_at"] = time.time()
+            self._save_unsafe()
+
     def reset(self) -> None:
         """Resetea todas las stats a cero. Útil cuando empieza un test nuevo."""
         with self._lock:
@@ -121,32 +155,46 @@ class ABTestStats:
         with self._lock:
             state = json.loads(json.dumps(self._state))  # copia profunda
 
-        a = state["variants"]["A"]
-        b = state["variants"]["B"]
+        def _per_variant(v: Dict[str, Any]) -> Dict[str, Any]:
+            views = v["views"]
+            purchases = v["purchases"]
+            declines = v["declines"]
+            revenue = v["revenue"]
+            # "Sin acción" = visitas que no clickearon ni Sí ni No (cerraron pestaña).
+            # Puede dar negativo en casos de borde (cliente recarga después de comprar)
+            # — lo clampeamos a 0 para que no confunda en el dashboard.
+            no_action = max(0, views - purchases - declines)
+            return {
+                "views": views,
+                "purchases": purchases,
+                "declines": declines,
+                "no_action": no_action,
+                "revenue": revenue,
+                "conversion_rate": (purchases / views) if views > 0 else 0.0,
+                "decline_rate": (declines / views) if views > 0 else 0.0,
+                "revenue_per_visitor": (revenue / views) if views > 0 else 0.0,
+            }
 
-        a_cr = (a["purchases"] / a["views"]) if a["views"] > 0 else 0.0
-        b_cr = (b["purchases"] / b["views"]) if b["views"] > 0 else 0.0
+        a = _per_variant(state["variants"]["A"])
+        b = _per_variant(state["variants"]["B"])
 
-        # Revenue per visitor (RPV): mejor métrica que CR sola para A/B test de
-        # precios — captura el trade-off "más conversiones a menos plata".
-        a_rpv = (a["revenue"] / a["views"]) if a["views"] > 0 else 0.0
-        b_rpv = (b["revenue"] / b["views"]) if b["views"] > 0 else 0.0
+        # Diferencias relativas (%) para mostrar uplifts
+        cr_uplift = ((b["conversion_rate"] / a["conversion_rate"]) - 1) * 100 \
+            if a["conversion_rate"] > 0 else None
+        rpv_uplift = ((b["revenue_per_visitor"] / a["revenue_per_visitor"]) - 1) * 100 \
+            if a["revenue_per_visitor"] > 0 else None
 
-        # Diferencias relativas
-        cr_uplift = ((b_cr / a_cr) - 1) * 100 if a_cr > 0 else None
-        rpv_uplift = ((b_rpv / a_rpv) - 1) * 100 if a_rpv > 0 else None
-
-        # Z-test simple sobre proporciones (CR). Devuelve nivel de confianza
-        # aproximado. Solo significa algo si hay suficientes muestras.
+        # Z-test simple sobre proporciones (CR). Solo es significativo con muestras grandes.
         confidence_pct, winner_by_cr = _two_proportion_confidence(
             a["purchases"], a["views"], b["purchases"], b["views"]
         )
 
-        # Para revenue, el "ganador" se decide por RPV (revenue per visitor),
-        # no por CR. Es lo correcto para A/B de precios.
-        if a_rpv == 0 and b_rpv == 0:
+        # El "ganador" se decide por RPV (revenue per visitor), no por CR sola.
+        # Es lo correcto para A/B de precios: a veces precio bajo convierte más
+        # pero rinde menos plata por visitante.
+        if a["revenue_per_visitor"] == 0 and b["revenue_per_visitor"] == 0:
             winner_by_rpv = None
-        elif a_rpv >= b_rpv:
+        elif a["revenue_per_visitor"] >= b["revenue_per_visitor"]:
             winner_by_rpv = "A"
         else:
             winner_by_rpv = "B"
@@ -154,24 +202,13 @@ class ABTestStats:
         return {
             "started_at": state["started_at"],
             "last_event_at": state["last_event_at"],
-            "variants": {
-                "A": {
-                    **a,
-                    "conversion_rate": a_cr,
-                    "revenue_per_visitor": a_rpv,
-                },
-                "B": {
-                    **b,
-                    "conversion_rate": b_cr,
-                    "revenue_per_visitor": b_rpv,
-                },
-            },
+            "variants": {"A": a, "B": b},
             "comparison": {
-                "cr_uplift_pct": cr_uplift,         # +X% si B convierte mejor en %
-                "rpv_uplift_pct": rpv_uplift,       # +X% si B trae más plata por visitante
-                "winner_by_cr": winner_by_cr,       # quien convierte más
-                "winner_by_rpv": winner_by_rpv,     # quien trae más revenue (lo que importa para precio)
-                "confidence_pct": confidence_pct,   # cuán confiable es la diferencia (0-99.9%)
+                "cr_uplift_pct": cr_uplift,
+                "rpv_uplift_pct": rpv_uplift,
+                "winner_by_cr": winner_by_cr,
+                "winner_by_rpv": winner_by_rpv,
+                "confidence_pct": confidence_pct,
             },
         }
 

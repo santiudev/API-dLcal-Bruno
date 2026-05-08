@@ -492,8 +492,10 @@
              href="/api/upsell/click/{{ payment_id }}"
              class="oto-btn oto-btn-primary">Sí, sumar 3 meses</a>
 
+          {# Botón "No, gracias" → pasa por la API para trackear el rechazo en
+             las stats del A/B test, después redirige al UPSELL_DECLINE_URL. #}
           <a id="upsellDeclineBtn"
-             href="{{ decline_url }}"
+             href="/api/upsell/decline/{{ payment_id }}"
              class="oto-btn oto-btn-secondary">No, gracias</a>
         </div>
 
