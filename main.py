@@ -643,27 +643,47 @@ def _render_upsell_template(request: Request, payment_id: str):
 
 
 @app.get("/upsell", tags=["Upsell"], summary="Página de oferta upsell (vía query param)")
-async def render_upsell_page_querystring(
-    request: Request,
-    payment_id: Optional[str] = None,
-    status: Optional[str] = None,
-    order_id: Optional[str] = None,
-):
+async def render_upsell_page_querystring(request: Request):
     """
-    Página de upsell servida cuando dLocal redirige con `?payment_id=...&status=PAID`.
+    Página de upsell servida cuando dLocal redirige con query params después
+    del pago principal.
 
     Esta es la URL pensada para `DLOCAL_SUCCESS_URL`:
         DLOCAL_SUCCESS_URL=https://dlocal.brunoelleon.com/upsell
 
-    dLocal automáticamente agrega `?payment_id=...&status=...&order_id=...` al
-    final, y este endpoint extrae el `payment_id` del query string para renderizar
-    la oferta. Si el pago no fue exitoso, redirige al cliente al UPSELL_DECLINE_URL
-    (no tiene sentido ofrecer un upsell sobre un pago que no se completó).
+    dLocal Go agrega query params al final del success_url. Como la doc no
+    especifica los nombres exactos, probamos varios alias comunes para extraer
+    el payment_id (`payment_id`, `id`, `paymentId`, `payment`).
+
+    Si el status del pago original no fue exitoso (PAID/APPROVED), redirige
+    al UPSELL_DECLINE_URL — no tiene sentido ofrecer upsell sobre un pago fallido.
     """
     from fastapi.responses import RedirectResponse, HTMLResponse
 
+    # Extraer todos los query params para loguearlos completos. Esto es CLAVE
+    # para diagnosticar qué nombres de campo usa realmente dLocal.
+    query_params = dict(request.query_params)
+    logger.info(f"Upsell page received query params: {query_params}")
+
+    # Buscar el payment_id en varios nombres posibles (la doc de dLocal no
+    # especifica el nombre exacto, así que probamos todos los comunes).
+    payment_id = (
+        query_params.get("payment_id")
+        or query_params.get("id")
+        or query_params.get("paymentId")
+        or query_params.get("payment")
+    )
+    status_raw = (
+        query_params.get("status")
+        or query_params.get("payment_status")
+        or query_params.get("paymentStatus")
+    )
+
     if not payment_id:
-        logger.warning("Upsell page hit without payment_id query param")
+        logger.warning(
+            f"Upsell page hit without identifiable payment_id. "
+            f"Query params received: {query_params}"
+        )
         return HTMLResponse(
             _render_upsell_fallback_html(
                 success=False,
@@ -672,14 +692,15 @@ async def render_upsell_page_querystring(
             status_code=400,
         )
 
-    # Solo mostramos el upsell si el pago original fue exitoso. Si el cliente
-    # llegó acá con un status distinto, lo mandamos a la página de gracias.
-    if status and status.upper() != "PAID":
+    # Si el pago original no fue exitoso, redirigir al "no gracias" en lugar
+    # de mostrar la oferta de upsell.
+    if status_raw and status_raw.upper() not in ("PAID", "APPROVED"):
         logger.info(
-            f"Skipping upsell page for payment {payment_id} with status={status}"
+            f"Skipping upsell page for payment {payment_id} with status={status_raw}"
         )
         return RedirectResponse(url=settings.upsell_decline_url or "/")
 
+    logger.info(f"Rendering upsell page for payment_id={payment_id}, status={status_raw}")
     return _render_upsell_template(request, payment_id)
 
 
