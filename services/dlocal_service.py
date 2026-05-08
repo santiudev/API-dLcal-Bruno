@@ -9,6 +9,7 @@ import uuid
 from config import settings
 from utils.security import get_dlocal_headers
 from models import PaymentResponse, PaymentDetails, UpsellResponse
+from services.upsell_cache import upsell_cache
 
 logger = logging.getLogger(__name__)
 
@@ -96,8 +97,17 @@ class DLocalService:
         
         # Las URLs de retorno son opcionales: si no están seteadas en .env,
         # dLocal usa su propia pantalla de estado y no redirige al cliente.
+        # IMPORTANTE: dLocal Go redirige al success_url SIN agregar query params
+        # (no manda payment_id, status, ni order_id automáticamente). Por eso,
+        # cuando hay upsell habilitado, le inyectamos NOSOTROS el order_id como
+        # query param para poder identificar el pago cuando vuelve el cliente.
+        success_url_final = settings.dlocal_success_url
+        if success_url_final and settings.upsell_enabled:
+            separator = "&" if "?" in success_url_final else "?"
+            success_url_final = f"{success_url_final}{separator}order_id={order_id}"
+
         optional_redirect_urls = {
-            "success_url": settings.dlocal_success_url,
+            "success_url": success_url_final,
             "error_url": settings.dlocal_error_url,
             "pending_url": settings.dlocal_pending_url,
             "cancel_url": settings.dlocal_cancel_url,
@@ -137,7 +147,23 @@ class DLocalService:
                 result = response.json()
                 
                 logger.info(f"Payment created successfully: {result.get('id')}")
-                
+
+                # Si hay upsell habilitado, guardamos el mapping order_id →
+                # (payment_id, merchant_checkout_token) en el cache. Después
+                # cuando el cliente vuelva al /upsell?order_id=..., levantamos
+                # esta info sin tener que volver a pedirle nada a dLocal.
+                if settings.upsell_enabled and result.get("merchant_checkout_token"):
+                    upsell_cache.store(
+                        order_id=order_id,
+                        payment_id=result.get("id", ""),
+                        merchant_checkout_token=result.get("merchant_checkout_token"),
+                    )
+                elif settings.upsell_enabled:
+                    logger.warning(
+                        f"Upsell enabled but dLocal did NOT return merchant_checkout_token "
+                        f"for payment {result.get('id')}. ¿Está habilitada la feature en la cuenta?"
+                    )
+
                 # Construir response
                 return PaymentResponse(
                     payment_id=result.get("id"),

@@ -220,9 +220,11 @@ La API sirve directamente la página de upsell con el diseño completo (oscuro/v
 DLOCAL_SUCCESS_URL=https://dlocal.brunoelleon.com/upsell
 ```
 
-dLocal automáticamente le agrega `?payment_id=...&status=PAID&order_id=...` al final, y la API levanta el `payment_id` del query para renderizar la oferta correcta.
+> ⚠️ **dLocal Go redirige al success_url SIN agregar query params automáticamente.** Por eso, en `dlocal_service.create_payment()` la API inyecta automáticamente el `order_id` como query param antes de mandar el create_payment. El cliente termina redirigido a `https://dlocal.brunoelleon.com/upsell?order_id=order_xxxxx`.
+>
+> El `order_id` se usa como llave para buscar en un **cache en memoria** (`services/upsell_cache.py`) el `payment_id` y el `merchant_checkout_token` que devolvió dLocal al crear el checkout. El cache tiene TTL de 30 minutos (suficiente buffer sobre los 15 min de ventana de upsell que da dLocal).
 
-> Si el pago original no fue exitoso (status ≠ PAID), la página automáticamente redirige al `UPSELL_DECLINE_URL` — no tiene sentido ofrecer un upsell sobre un cobro que no se completó.
+> ⚠️ **Limitación del cache en memoria**: si el server se reinicia entre que el cliente paga y entra al `/upsell`, el cache se pierde y aparece el mensaje "La oferta ya no está disponible". En Render Free Plan, esto puede pasar si el server estuvo dormido. Para producción seria, conviene **upgradear a Render Starter** (no se duerme) o migrar el cache a Redis.
 
 #### Personalizar la página
 

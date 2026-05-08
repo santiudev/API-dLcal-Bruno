@@ -23,6 +23,7 @@ from models import (
 from services.dlocal_service import dlocal_service
 from services.webhook_service import webhook_service
 from services.meta_pixel_service import meta_pixel_service
+from services.upsell_cache import upsell_cache
 
 # Templates Jinja2 para servir HTML (página de upsell, etc.)
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -645,43 +646,31 @@ def _render_upsell_template(request: Request, payment_id: str):
 @app.get("/upsell", tags=["Upsell"], summary="Página de oferta upsell (vía query param)")
 async def render_upsell_page_querystring(request: Request):
     """
-    Página de upsell servida cuando dLocal redirige con query params después
-    del pago principal.
+    Página de upsell servida cuando dLocal redirige al cliente después del pago.
 
     Esta es la URL pensada para `DLOCAL_SUCCESS_URL`:
         DLOCAL_SUCCESS_URL=https://dlocal.brunoelleon.com/upsell
 
-    dLocal Go agrega query params al final del success_url. Como la doc no
-    especifica los nombres exactos, probamos varios alias comunes para extraer
-    el payment_id (`payment_id`, `id`, `paymentId`, `payment`).
+    IMPORTANTE: dLocal Go redirige al success_url SIN agregar query params
+    automáticamente. Por eso, en `dlocal_service.create_payment()` le inyectamos
+    NOSOTROS el `order_id` como query param antes de mandar el create_payment.
+    Cuando el cliente vuelve acá, leemos el order_id y buscamos en el upsell
+    cache el merchant_checkout_token correspondiente.
 
-    Si el status del pago original no fue exitoso (PAID/APPROVED), redirige
-    al UPSELL_DECLINE_URL — no tiene sentido ofrecer upsell sobre un pago fallido.
+    Casos:
+    - Sin order_id en la URL → el flujo de upsell no fue inicializado correctamente
+    - order_id no encontrado en cache → el server se reinició o pasó >30 min
+    - Todo OK → renderiza la página de oferta
     """
-    from fastapi.responses import RedirectResponse, HTMLResponse
+    from fastapi.responses import HTMLResponse
 
-    # Extraer todos los query params para loguearlos completos. Esto es CLAVE
-    # para diagnosticar qué nombres de campo usa realmente dLocal.
     query_params = dict(request.query_params)
     logger.info(f"Upsell page received query params: {query_params}")
 
-    # Buscar el payment_id en varios nombres posibles (la doc de dLocal no
-    # especifica el nombre exacto, así que probamos todos los comunes).
-    payment_id = (
-        query_params.get("payment_id")
-        or query_params.get("id")
-        or query_params.get("paymentId")
-        or query_params.get("payment")
-    )
-    status_raw = (
-        query_params.get("status")
-        or query_params.get("payment_status")
-        or query_params.get("paymentStatus")
-    )
-
-    if not payment_id:
+    order_id = query_params.get("order_id")
+    if not order_id:
         logger.warning(
-            f"Upsell page hit without identifiable payment_id. "
+            f"Upsell page hit without order_id query param. "
             f"Query params received: {query_params}"
         )
         return HTMLResponse(
@@ -692,15 +681,22 @@ async def render_upsell_page_querystring(request: Request):
             status_code=400,
         )
 
-    # Si el pago original no fue exitoso, redirigir al "no gracias" en lugar
-    # de mostrar la oferta de upsell.
-    if status_raw and status_raw.upper() not in ("PAID", "APPROVED"):
-        logger.info(
-            f"Skipping upsell page for payment {payment_id} with status={status_raw}"
+    cache_entry = upsell_cache.get_by_order_id(order_id)
+    if not cache_entry:
+        logger.warning(
+            f"Upsell page: order_id={order_id} not found in cache "
+            f"(server probably restarted or >30 min passed since payment creation)"
         )
-        return RedirectResponse(url=settings.upsell_decline_url or "/")
+        return HTMLResponse(
+            _render_upsell_fallback_html(
+                success=False,
+                message="La oferta ya no está disponible. Si recién pagaste, intentá refrescar la página."
+            ),
+            status_code=410,  # Gone
+        )
 
-    logger.info(f"Rendering upsell page for payment_id={payment_id}, status={status_raw}")
+    payment_id = cache_entry["payment_id"]
+    logger.info(f"Rendering upsell page for order_id={order_id} → payment_id={payment_id}")
     return _render_upsell_template(request, payment_id)
 
 
@@ -758,25 +754,43 @@ async def upsell_click_redirect(request: Request, payment_id: str):
             status_code=400,
         )
 
-    # 1. Obtener el merchant_checkout_token a partir del payment_id
+    # 1. Obtener el merchant_checkout_token. PRIORIDAD: cache (fast path),
+    # con fallback a dLocal por si el server se reinició y el cache se perdió.
+    token: Optional[str] = None
+    payment_details = None
+
+    cache_entry = upsell_cache.get_by_payment_id(payment_id)
+    if cache_entry and cache_entry.get("merchant_checkout_token"):
+        token = cache_entry["merchant_checkout_token"]
+        logger.info(f"Upsell click: token resolved from cache for payment_id={payment_id}")
+
+    # Siempre traemos los detalles del payment para tener PII (email/phone) que
+    # le mandamos a Meta CAPI más abajo. Si el token vino del cache, esto es
+    # solo enriquecimiento; si no vino, también lo usamos como fallback de token.
     try:
         payment_details = await dlocal_service.get_payment_details(payment_id)
     except Exception as e:
         logger.error(f"Could not retrieve payment {payment_id} for upsell click: {e}")
-        if settings.upsell_error_url:
-            return RedirectResponse(url=settings.upsell_error_url)
-        return HTMLResponse(
-            _render_upsell_fallback_html(
-                success=False,
-                message="No pudimos encontrar tu compra. Si pagaste, contactanos a soporte."
-            ),
-            status_code=404,
-        )
+        if not token:
+            # Si tampoco lo teníamos en cache, no hay forma de seguir.
+            if settings.upsell_error_url:
+                return RedirectResponse(url=settings.upsell_error_url)
+            return HTMLResponse(
+                _render_upsell_fallback_html(
+                    success=False,
+                    message="No pudimos encontrar tu compra. Si pagaste, contactanos a soporte."
+                ),
+                status_code=404,
+            )
 
-    token = _extract_merchant_checkout_token(payment_details.raw_data or {})
+    # Fallback: si no había token en el cache, intentar extraerlo del payload
+    # del GET payment (depende de que dLocal lo devuelva, lo cual no es 100% seguro).
+    if not token and payment_details:
+        token = _extract_merchant_checkout_token(payment_details.raw_data or {})
+
     if not token:
         logger.error(
-            f"merchant_checkout_token not found in payment {payment_id} response. "
+            f"merchant_checkout_token not found in cache nor in payment {payment_id} response. "
             f"Verificar que el checkout fue creado con allow_upsell=true."
         )
         if settings.upsell_error_url:
@@ -814,7 +828,8 @@ async def upsell_click_redirect(request: Request, payment_id: str):
         # Usamos el payment_id del upsell como event_id para que sea estable
         # y deduplicable si en el futuro se agrega el Pixel del lado cliente.
         try:
-            payer_info = _extract_payer_info(payment_details.raw_data or {})
+            raw = payment_details.raw_data if payment_details else {}
+            payer_info = _extract_payer_info(raw or {})
             await meta_pixel_service.send_purchase_event(
                 event_id=result.payment_id or f"upsell_{payment_id}",
                 amount=result.amount,
