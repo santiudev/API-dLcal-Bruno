@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     # del upsell y se respeta a lo largo de todo el flujo del cliente.
     upsell_ab_test_enabled: bool = False
     upsell_amount_variant_b: float = 147.00  # Precio alternativo (USD) para la variante B
+    # Switch de testing: si está en true, los endpoints /pagar y /api/pago aceptan
+    # un query param `force_ab=A|B` que sobreescribe el random.choice. Útil para
+    # probar end-to-end sin depender del azar (1 compra por variante y listo).
+    # IMPORTANTE: dejar en false en producción real para que el A/B test sea limpio.
+    upsell_ab_force_enabled: bool = False
 
     # URLs a las que se redirige al cliente DESPUÉS de hacer clic en el botón
     # de upsell (endpoint /api/upsell/click/{payment_id}). Si quedan vacías,

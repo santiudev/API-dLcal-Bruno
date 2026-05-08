@@ -30,7 +30,8 @@ class DLocalService:
         country: str,
         payment_type: str,
         customer_name: Optional[str] = None,
-        customer_email: Optional[str] = None
+        customer_email: Optional[str] = None,
+        force_ab_variant: Optional[str] = None,
     ) -> PaymentResponse:
         """
         Crea un pago en dLocal
@@ -157,13 +158,25 @@ class DLocalService:
                     # Si el A/B test está activo, asignamos variante random 50/50.
                     # La asignación es sticky: se hace UNA vez por order_id y queda
                     # guardada en el cache, así el cliente siempre ve el mismo precio.
+                    # Si vino force_ab_variant Y el switch de testing está activo,
+                    # respetamos esa variante en vez del random (útil para QA).
                     ab_variant: Optional[str] = None
                     if settings.upsell_ab_test_enabled:
-                        ab_variant = random.choice(["A", "B"])
-                        logger.info(
-                            f"A/B test active → assigned variant '{ab_variant}' "
-                            f"to order_id={order_id}"
-                        )
+                        if (
+                            force_ab_variant in ("A", "B")
+                            and settings.upsell_ab_force_enabled
+                        ):
+                            ab_variant = force_ab_variant
+                            logger.info(
+                                f"A/B test active + force_ab override → variant "
+                                f"'{ab_variant}' assigned to order_id={order_id}"
+                            )
+                        else:
+                            ab_variant = random.choice(["A", "B"])
+                            logger.info(
+                                f"A/B test active → assigned variant '{ab_variant}' "
+                                f"to order_id={order_id}"
+                            )
 
                     upsell_cache.store(
                         order_id=order_id,

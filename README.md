@@ -288,6 +288,36 @@ Cuando está activo:
 1. Setear `UPSELL_AB_TEST_ENABLED=false`
 2. Si la variante B ganó, mover su precio a `UPSELL_AMOUNT` y ese queda como nuevo default
 
+#### Dashboard del A/B test — `GET /admin/ab-test/stats`
+
+Dashboard interno con resultados en tiempo real, protegido con HTTP Basic Auth.
+
+```env
+ADMIN_USERNAME=tu_usuario
+ADMIN_PASSWORD=password_fuerte
+AB_TEST_DATA_PATH=/data/ab_test_stats.json   # En Render: requiere Disk montado en /data
+```
+
+URL: `https://dlocal.brunoelleon.com/admin/ab-test/stats` — el browser pide usuario/password.
+
+Métricas que muestra:
+- **Vistas, compras, conversion rate, revenue total** y **revenue per visitor** por variante
+- **Ganador por revenue per visitor** (la métrica correcta para A/B de precios — un precio bajo puede convertir más pero rendir menos plata)
+- **Confianza estadística** vía z-test de dos proporciones (recién a partir de ~95% se considera confiable)
+
+Endpoints relacionados:
+- `GET /admin/ab-test/stats` → dashboard HTML
+- `GET /admin/ab-test/stats.json` → mismo summary en JSON (útil para scripts)
+- `POST /admin/ab-test/reset` → resetea los counters a cero (cuando empezás un test nuevo)
+
+Si `ADMIN_USERNAME`/`PASSWORD` no están seteados, los endpoints devuelven `503` (acceso deshabilitado por seguridad).
+
+#### Persistencia del A/B test
+
+Las stats se guardan en `AB_TEST_DATA_PATH` (default `/data/ab_test_stats.json`). Para que sobreviva redeploys de Render, hay que montar un Render Disk en `/data` (ver `render.yaml`). Render Disk cuesta **$1/mes** por 1GB y NO está disponible en plan Free — hay que estar al menos en Starter ($7/mes).
+
+Si querés correr local, cambiá el path en `.env` a algo tipo `./data/ab_test_stats.json`.
+
 **Respuesta** (igual en ambos):
 ```json
 {

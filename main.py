@@ -197,7 +197,8 @@ async def create_payment_get(
     country: str = "MX",
     type: str = "plan6",
     name: str = None,
-    email: str = None
+    email: str = None,
+    force_ab: Optional[str] = None,
 ):
     """
     Crea un link de pago en dLocal y devuelve JSON con los datos
@@ -218,6 +219,10 @@ async def create_payment_get(
     - /api/pago?country=AR&type=plan9                    → Sin teléfono, 9 cuotas
     - /api/pago?type=contado                             → Pago único USD 597
     - /api/pago                                          → Checkout limpio, plan6, país MX
+
+    Param de testing (solo si UPSELL_AB_FORCE_ENABLED=true en .env):
+    - **force_ab**: "A" o "B" — fuerza la variante de A/B test del upsell para
+      esta compra (útil para hacer QA controlado: 1 compra por variante).
     """
     try:
         # Normalizar el teléfono (solo si se proporciona)
@@ -230,7 +235,8 @@ async def create_payment_get(
         
         logger.info(
             f"Creating payment via GET - Country: {country}, "
-            f"Type: {payment_type}, Phone: {phone_number or 'Not provided'}"
+            f"Type: {payment_type}, Phone: {phone_number or 'Not provided'}, "
+            f"force_ab={force_ab or '-'}"
         )
         
         # Crear el pago en dLocal
@@ -239,7 +245,8 @@ async def create_payment_get(
             country=country.upper(),
             payment_type=payment_type,
             customer_name=name,
-            customer_email=email
+            customer_email=email,
+            force_ab_variant=force_ab,
         )
         
         logger.info(f"Payment created successfully: {payment_response.payment_id}")
@@ -260,7 +267,8 @@ async def redirect_to_checkout(
     country: str = "MX",
     type: str = "plan6",
     name: str = None,
-    email: str = None
+    email: str = None,
+    force_ab: Optional[str] = None,
 ):
     """
     Crea un pago y REDIRIGE automáticamente al checkout de dLocal
@@ -281,6 +289,10 @@ async def redirect_to_checkout(
     - /pagar?country=AR&type=plan9                    → Sin teléfono, 9 cuotas
     - /pagar?type=contado                             → Pago único USD 597
     - /pagar                                          → Checkout limpio, plan6, país MX
+
+    Param de testing (solo si UPSELL_AB_FORCE_ENABLED=true en .env):
+    - **force_ab**: "A" o "B" — fuerza la variante de A/B test del upsell para
+      esta compra (útil para hacer QA controlado: 1 compra por variante).
     """
     from fastapi.responses import RedirectResponse
     
@@ -295,7 +307,8 @@ async def redirect_to_checkout(
         
         logger.info(
             f"Creating payment with redirect - Country: {country}, "
-            f"Type: {payment_type}, Phone: {phone_number or 'Not provided'}"
+            f"Type: {payment_type}, Phone: {phone_number or 'Not provided'}, "
+            f"force_ab={force_ab or '-'}"
         )
         
         # Crear el pago en dLocal
@@ -304,7 +317,8 @@ async def redirect_to_checkout(
             country=country.upper(),
             payment_type=payment_type,
             customer_name=name,
-            customer_email=email
+            customer_email=email,
+            force_ab_variant=force_ab,
         )
         
         logger.info(f"Payment created, redirecting to checkout: {payment_response.payment_id}")

@@ -92,6 +92,8 @@ services:
         value: "false"        # poner "true" para arrancar el test
       - key: UPSELL_AMOUNT_VARIANT_B
         value: "147"
+      - key: UPSELL_AB_FORCE_ENABLED
+        value: "false"        # solo en true para QA: habilita ?force_ab=A|B en /pagar
 
       # Dashboard del A/B test (Basic Auth)
       - key: ADMIN_USERNAME
