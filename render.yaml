@@ -19,6 +19,15 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
 
+    # Disco persistente para guardar las stats del A/B test del upsell.
+    # Si lo sacás, las stats se reinician con cada redeploy.
+    # IMPORTANTE: Render Disks NO están disponibles en plan Free. Si todavía
+    # estás en Free, comentá este bloque o pasá a Starter ($7/mes).
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1               # 1 GB es más que suficiente — el archivo pesa ~1KB
+
     envVars:
       # Versión de Python (fija para evitar sorpresas)
       - key: PYTHON_VERSION
@@ -67,3 +76,33 @@ services:
         value: Mentoría León
       - key: PAYMENT_DESCRIPTION
         value: Mentoría León
+
+      # One-Click Upsell
+      - key: UPSELL_ENABLED
+        value: "true"
+      - key: UPSELL_AMOUNT
+        value: "197"
+      - key: UPSELL_DESCRIPTION
+        value: Mentoría León - Extensión de 3 meses
+      - key: UPSELL_DECLINE_URL
+        sync: false           # ej: https://bruno.11demayo.com/graciasn
+
+      # A/B test del upsell
+      - key: UPSELL_AB_TEST_ENABLED
+        value: "false"        # poner "true" para arrancar el test
+      - key: UPSELL_AMOUNT_VARIANT_B
+        value: "147"
+
+      # Dashboard del A/B test (Basic Auth)
+      - key: ADMIN_USERNAME
+        sync: false           # ej: admin
+      - key: ADMIN_PASSWORD
+        sync: false           # password fuerte
+      - key: AB_TEST_DATA_PATH
+        value: /data/ab_test_stats.json
+
+      # Meta (Facebook) Pixel + Conversions API
+      - key: META_PIXEL_ID
+        sync: false
+      - key: META_ACCESS_TOKEN
+        sync: false

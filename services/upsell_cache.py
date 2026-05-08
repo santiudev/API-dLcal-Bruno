@@ -43,19 +43,26 @@ class UpsellCache:
         order_id: str,
         payment_id: str,
         merchant_checkout_token: Optional[str],
+        ab_variant: Optional[str] = None,
     ) -> None:
-        """Guarda el mapping cuando se crea un checkout con allow_upsell=true."""
+        """Guarda el mapping cuando se crea un checkout con allow_upsell=true.
+
+        ab_variant: si hay A/B test activo, va "A" o "B". Determina qué precio
+        se le muestra y cobra al cliente. Sticky: se asigna acá y nunca cambia
+        para ese order_id, aunque el cliente refresque o vuelva.
+        """
         with self._lock:
             self._cache[order_id] = {
                 "payment_id": payment_id,
                 "merchant_checkout_token": merchant_checkout_token,
+                "ab_variant": ab_variant,
                 "stored_at": time.time(),
             }
             self._cleanup_expired_unsafe()
             logger.info(
                 f"Upsell cache stored: order_id={order_id} → "
                 f"payment_id={payment_id}, has_token={bool(merchant_checkout_token)}, "
-                f"cache_size={len(self._cache)}"
+                f"ab_variant={ab_variant or '-'}, cache_size={len(self._cache)}"
             )
 
     def get_by_order_id(self, order_id: str) -> Optional[dict]:

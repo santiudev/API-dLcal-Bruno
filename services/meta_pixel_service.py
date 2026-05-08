@@ -56,6 +56,7 @@ class MetaPixelService:
         phone: Optional[str] = None,
         country: Optional[str] = None,
         event_source_url: Optional[str] = None,
+        ab_variant: Optional[str] = None,
     ) -> bool:
         """
         Envía un evento "Purchase" a Meta Conversions API.
@@ -68,10 +69,25 @@ class MetaPixelService:
             client_ip, client_user_agent: ayudan a Meta a hacer match con el usuario.
             email, phone, country: PII del cliente — se hashean antes de mandar.
             event_source_url: URL donde ocurrió el evento (la success page).
+            ab_variant: si hay A/B test activo, "A" o "B" — se manda en
+                custom_data para poder filtrar conversiones por variante en
+                Meta Events Manager.
 
         Returns:
             True si Meta aceptó el evento (status 2xx), False si falló.
         """
+        custom_data = {
+            "currency": currency,
+            "value": amount,
+            "order_id": order_id,
+        }
+        if ab_variant:
+            custom_data["ab_variant"] = ab_variant
+            # content_name también incluye la variante para que aparezca en
+            # los reportes default de Meta sin necesidad de configurar custom
+            # conversions.
+            custom_data["content_name"] = f"Upsell Extension 3 meses (Variant {ab_variant})"
+
         return await self._send_event(
             event_name="Purchase",
             event_id=event_id,
@@ -81,11 +97,7 @@ class MetaPixelService:
             phone=phone,
             country=country,
             event_source_url=event_source_url,
-            custom_data={
-                "currency": currency,
-                "value": amount,
-                "order_id": order_id,
-            },
+            custom_data=custom_data,
         )
 
     async def _send_event(

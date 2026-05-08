@@ -260,6 +260,34 @@ Eventos disparados automáticamente:
 
 El `event_id` del `Purchase` es el `payment_id` del upsell devuelto por dLocal, así que es estable y deduplicable.
 
+### 7. A/B Test de precio del upsell
+
+Tracking 50/50 transparente para comparar dos precios del upsell sin tocar código en cada experimento. La asignación de variante es **sticky por `order_id`** (cada cliente siempre ve el mismo precio aunque refresque o vuelva).
+
+```env
+UPSELL_AB_TEST_ENABLED=true   # Encender/apagar el test sin redeploy
+UPSELL_AMOUNT=197             # Variante A (control)
+UPSELL_AMOUNT_VARIANT_B=147   # Variante B (prueba)
+```
+
+Cuando está activo:
+- Cada nuevo checkout se asigna al azar 50/50 a variante A o B
+- La página `/upsell` muestra el precio correspondiente
+- El cobro a dLocal lleva `[Variant A]` o `[Variant B]` en el `description`
+- El evento `Purchase` de Meta CAPI lleva `custom_data.variant: A|B` y `content_name: "Upsell Extension 3 meses (Variant X)"`
+
+**Cómo medir conversión por variante:**
+
+| Lugar | Cómo filtrar |
+|---|---|
+| Logs de Render | Buscar `ab_variant=A` o `ab_variant=B` |
+| Panel de dLocal | Filtrar pagos por description que contenga `[Variant A]` o `[Variant B]` |
+| Meta Events Manager | Crear conversión custom filtrando `custom_data.variant = "A"` o `"B"` |
+
+**Cuando termines el test:**
+1. Setear `UPSELL_AB_TEST_ENABLED=false`
+2. Si la variante B ganó, mover su precio a `UPSELL_AMOUNT` y ese queda como nuevo default
+
 **Respuesta** (igual en ambos):
 ```json
 {

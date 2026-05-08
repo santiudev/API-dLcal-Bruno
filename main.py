@@ -4,8 +4,11 @@ Procesa pagos, recibe webhooks y envía notificaciones
 """
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+import secrets
+
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
 from typing import Optional
@@ -24,6 +27,7 @@ from services.dlocal_service import dlocal_service
 from services.webhook_service import webhook_service
 from services.meta_pixel_service import meta_pixel_service
 from services.upsell_cache import upsell_cache
+from services.ab_test_stats import ab_test_stats
 
 # Templates Jinja2 para servir HTML (página de upsell, etc.)
 TEMPLATES_DIR = Path(__file__).parent / "templates"
@@ -627,16 +631,55 @@ def _extract_payer_info(payment_details_raw: dict) -> dict:
     }
 
 
-def _render_upsell_template(request: Request, payment_id: str):
-    """Helper que arma el contexto y renderiza el template `upsell.html`."""
+def _resolve_upsell_pricing(ab_variant: Optional[str]) -> dict:
+    """Devuelve el precio y descripción a usar según la variante de A/B test.
+
+    Si no hay test activo o no hay variante asignada, usa la variante A (control)
+    pero NO modifica la descripción (no agrega tag). Si hay variante asignada,
+    le agrega `[Variant X]` al description para poder filtrar en el panel de
+    dLocal y en el log.
+    """
+    if ab_variant == "B":
+        return {
+            "amount": settings.upsell_amount_variant_b,
+            "description": f"{settings.upsell_description} [Variant B]",
+            "variant": "B",
+        }
+    if ab_variant == "A":
+        return {
+            "amount": settings.upsell_amount,
+            "description": f"{settings.upsell_description} [Variant A]",
+            "variant": "A",
+        }
+    # Sin test activo
+    return {
+        "amount": settings.upsell_amount,
+        "description": settings.upsell_description,
+        "variant": None,
+    }
+
+
+def _render_upsell_template(
+    request: Request,
+    payment_id: str,
+    pricing: Optional[dict] = None,
+):
+    """Helper que arma el contexto y renderiza el template `upsell.html`.
+
+    Si se pasa `pricing` (resultado de `_resolve_upsell_pricing`), usa esos
+    valores; si no, defaultea al precio normal (variante A / sin test).
+    """
+    if pricing is None:
+        pricing = _resolve_upsell_pricing(None)
+
     decline_url = settings.upsell_decline_url or "/"
     return templates.TemplateResponse(
         "upsell.html",
         {
             "request": request,
             "payment_id": payment_id,
-            "upsell_amount": settings.upsell_amount,
-            "upsell_description": settings.upsell_description,
+            "upsell_amount": pricing["amount"],
+            "upsell_description": pricing["description"],
             "decline_url": decline_url,
             "meta_pixel_id": settings.meta_pixel_id,
         },
@@ -696,8 +739,16 @@ async def render_upsell_page_querystring(request: Request):
         )
 
     payment_id = cache_entry["payment_id"]
-    logger.info(f"Rendering upsell page for order_id={order_id} → payment_id={payment_id}")
-    return _render_upsell_template(request, payment_id)
+    pricing = _resolve_upsell_pricing(cache_entry.get("ab_variant"))
+    logger.info(
+        f"Rendering upsell page for order_id={order_id} → payment_id={payment_id}, "
+        f"ab_variant={pricing['variant'] or '-'}, amount=USD {pricing['amount']}"
+    )
+
+    # Contar la vista para el dashboard del A/B test (no-op si no hay variante).
+    ab_test_stats.record_view(pricing["variant"])
+
+    return _render_upsell_template(request, payment_id, pricing=pricing)
 
 
 @app.get("/upsell/{payment_id}", tags=["Upsell"], summary="Página de oferta upsell (vía path param)")
@@ -803,9 +854,22 @@ async def upsell_click_redirect(request: Request, payment_id: str):
             status_code=400,
         )
 
-    # 2. Confirmar el cobro del upsell
+    # 2. Resolver el precio según la variante de A/B test asignada (sticky por order_id).
+    # Si el A/B test no está activo o el cache se perdió, cae a la variante A.
+    ab_variant = cache_entry.get("ab_variant") if cache_entry else None
+    pricing = _resolve_upsell_pricing(ab_variant)
+    logger.info(
+        f"Upsell click pricing for payment_id={payment_id}: "
+        f"ab_variant={pricing['variant'] or '-'}, amount=USD {pricing['amount']}"
+    )
+
+    # 3. Confirmar el cobro del upsell con el precio/descripción de la variante.
     try:
-        result = await dlocal_service.confirm_upsell(merchant_checkout_token=token)
+        result = await dlocal_service.confirm_upsell(
+            merchant_checkout_token=token,
+            amount=pricing["amount"],
+            description=pricing["description"],
+        )
     except Exception as e:
         logger.error(f"Error confirming upsell for payment {payment_id}: {e}")
         if settings.upsell_error_url:
@@ -818,15 +882,23 @@ async def upsell_click_redirect(request: Request, payment_id: str):
             status_code=500,
         )
 
-    # 3. Decidir el redirect según el estado del cobro
+    # 4. Decidir el redirect según el estado del cobro
     status_upper = (result.status or "").upper()
 
     if status_upper == "PAID":
-        logger.info(f"Upsell PAID for original payment {payment_id} → redirecting to success")
+        logger.info(
+            f"Upsell PAID for original payment {payment_id} "
+            f"(ab_variant={pricing['variant'] or '-'}) → redirecting to success"
+        )
+
+        # Contar la compra para el dashboard del A/B test.
+        ab_test_stats.record_purchase(pricing["variant"], result.amount)
 
         # Disparar Purchase event a Meta Conversions API (server-side).
         # Usamos el payment_id del upsell como event_id para que sea estable
         # y deduplicable si en el futuro se agrega el Pixel del lado cliente.
+        # Si hay A/B test activo, agregamos la variante al custom_data para
+        # filtrar conversiones por variante en Meta Events Manager.
         try:
             raw = payment_details.raw_data if payment_details else {}
             payer_info = _extract_payer_info(raw or {})
@@ -841,6 +913,7 @@ async def upsell_click_redirect(request: Request, payment_id: str):
                 phone=payer_info.get("phone"),
                 country=payer_info.get("country"),
                 event_source_url=str(request.url),
+                ab_variant=pricing["variant"],
             )
         except Exception as e:
             # Nunca dejamos que un fallo en tracking rompa el redirect al cliente.
@@ -917,6 +990,103 @@ async def confirm_upsell_get(
         order_id=order_id,
         installments=installments,
     )
+
+
+_basic_auth = HTTPBasic(realm="Mentoría León Admin")
+
+
+def _require_admin(credentials: HTTPBasicCredentials = Depends(_basic_auth)) -> str:
+    """Dependencia de FastAPI: valida Basic Auth contra ADMIN_USERNAME/PASSWORD.
+
+    Si las variables de entorno no están seteadas, devuelve 503 — preferimos
+    cortar el acceso a "dejar el dashboard expuesto sin querer".
+    Usamos `secrets.compare_digest` para comparación constant-time
+    (evita timing attacks contra el password).
+    """
+    if not settings.admin_username or not settings.admin_password:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin endpoints disabled (ADMIN_USERNAME/ADMIN_PASSWORD not configured)",
+        )
+
+    user_ok = secrets.compare_digest(
+        credentials.username.encode("utf-8"),
+        settings.admin_username.encode("utf-8"),
+    )
+    pass_ok = secrets.compare_digest(
+        credentials.password.encode("utf-8"),
+        settings.admin_password.encode("utf-8"),
+    )
+    if not (user_ok and pass_ok):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials",
+            headers={"WWW-Authenticate": "Basic realm=\"Mentoría León Admin\""},
+        )
+    return credentials.username
+
+
+def _format_ts(epoch: Optional[float]) -> Optional[str]:
+    """Formatea un timestamp UNIX a string legible UTC. None si epoch es None."""
+    if not epoch:
+        return None
+    return datetime.utcfromtimestamp(epoch).strftime("%Y-%m-%d %H:%M:%S UTC")
+
+
+@app.get(
+    "/admin/ab-test/stats",
+    tags=["Admin"],
+    summary="Dashboard del A/B test del upsell (HTML, requiere Basic Auth)",
+)
+async def ab_test_dashboard(request: Request, _user: str = Depends(_require_admin)):
+    """
+    Dashboard interno con resultados del A/B test del upsell.
+
+    Autenticación: HTTP Basic Auth con ADMIN_USERNAME/ADMIN_PASSWORD del .env.
+    Si esas variables no están seteadas, devuelve 503 (acceso deshabilitado).
+
+    Métricas que muestra:
+    - Vistas, compras, conversion rate, revenue total, revenue per visitor por variante
+    - Ganador por revenue per visitor (la métrica correcta para A/B de precios)
+    - Confianza estadística (z-test de dos proporciones)
+    """
+    summary = ab_test_stats.get_summary()
+    return templates.TemplateResponse(
+        "ab_test_dashboard.html",
+        {
+            "request": request,
+            "started_at_str": _format_ts(summary["started_at"]) or "—",
+            "last_event_at_str": _format_ts(summary["last_event_at"]),
+            "variants": summary["variants"],
+            "comparison": summary["comparison"],
+            "prices": {
+                "A": settings.upsell_amount,
+                "B": settings.upsell_amount_variant_b,
+            },
+        },
+    )
+
+
+@app.get(
+    "/admin/ab-test/stats.json",
+    tags=["Admin"],
+    summary="Dashboard del A/B test en formato JSON (requiere Basic Auth)",
+)
+async def ab_test_stats_json(_user: str = Depends(_require_admin)):
+    """Versión JSON del dashboard, útil para automatizaciones / integraciones."""
+    return ab_test_stats.get_summary()
+
+
+@app.post(
+    "/admin/ab-test/reset",
+    tags=["Admin"],
+    summary="Resetea los counters del A/B test a cero (requiere Basic Auth)",
+)
+async def ab_test_reset(_user: str = Depends(_require_admin)):
+    """Útil cuando se cierra un test y se quiere arrancar uno nuevo desde cero."""
+    ab_test_stats.reset()
+    logger.info(f"AB test stats reset by admin user '{_user}'")
+    return {"status": "ok", "message": "AB test stats reseteadas"}
 
 
 @app.get("/api/payment/{payment_id}", tags=["Payments"])

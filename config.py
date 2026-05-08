@@ -35,8 +35,15 @@ class Settings(BaseSettings):
     # por lo que el checkout solo permitirá tarjetas de crédito/débito.
     # Hay una ventana de 15 minutos desde el pago original para confirmar el upsell.
     upsell_enabled: bool = True
-    upsell_amount: float = 197.00                                          # Monto fijo del producto upsell (USD)
+    upsell_amount: float = 197.00                                          # Monto del producto upsell (USD) — variante A (control)
     upsell_description: str = "Mentoría León - Extensión de 3 meses"       # Descripción del cargo upsell
+
+    # A/B test de precio (transparente al cliente, sticky por order_id 50/50).
+    # Si está habilitado, cada nuevo checkout queda asignado al azar a variante A
+    # ($197) o B (precio configurable abajo). La variante se guarda en el cache
+    # del upsell y se respeta a lo largo de todo el flujo del cliente.
+    upsell_ab_test_enabled: bool = False
+    upsell_amount_variant_b: float = 147.00  # Precio alternativo (USD) para la variante B
 
     # URLs a las que se redirige al cliente DESPUÉS de hacer clic en el botón
     # de upsell (endpoint /api/upsell/click/{payment_id}). Si quedan vacías,
@@ -54,6 +61,15 @@ class Settings(BaseSettings):
     # Endpoint de Conversions API. Versión congelada para evitar breaking changes
     # cuando Meta saca una nueva versión de Graph API.
     meta_graph_api_version: str = "v18.0"
+
+    # Dashboard del A/B test (Basic Auth)
+    # Si querés ver las stats en /admin/ab-test/stats hay que setear estas variables.
+    # Si quedan vacías, el endpoint devuelve 401 — el dashboard no es accesible.
+    admin_username: Optional[str] = None
+    admin_password: Optional[str] = None
+    # Path donde se persisten los counters del A/B test. En Render, hay que
+    # montar un Disk en /data y dejar este path así para que sobreviva redeploys.
+    ab_test_data_path: str = "/data/ab_test_stats.json"
 
     # Application Settings
     environment: str = "development"

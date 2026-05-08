@@ -3,8 +3,9 @@ Servicio de integración con dLocal Go API
 """
 import httpx
 import logging
-from typing import Optional
+import random
 import uuid
+from typing import Optional
 
 from config import settings
 from utils.security import get_dlocal_headers
@@ -153,10 +154,22 @@ class DLocalService:
                 # cuando el cliente vuelva al /upsell?order_id=..., levantamos
                 # esta info sin tener que volver a pedirle nada a dLocal.
                 if settings.upsell_enabled and result.get("merchant_checkout_token"):
+                    # Si el A/B test está activo, asignamos variante random 50/50.
+                    # La asignación es sticky: se hace UNA vez por order_id y queda
+                    # guardada en el cache, así el cliente siempre ve el mismo precio.
+                    ab_variant: Optional[str] = None
+                    if settings.upsell_ab_test_enabled:
+                        ab_variant = random.choice(["A", "B"])
+                        logger.info(
+                            f"A/B test active → assigned variant '{ab_variant}' "
+                            f"to order_id={order_id}"
+                        )
+
                     upsell_cache.store(
                         order_id=order_id,
                         payment_id=result.get("id", ""),
                         merchant_checkout_token=result.get("merchant_checkout_token"),
+                        ab_variant=ab_variant,
                     )
                 elif settings.upsell_enabled:
                     logger.warning(
