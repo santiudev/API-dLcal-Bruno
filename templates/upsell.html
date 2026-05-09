@@ -80,25 +80,28 @@
   }
 
   /* ============================================
-     TOP ALERT BANNER — full-width, fondo rojo,
-     letras blancas. Va antes del hero, fuera del
-     contenedor `.page` para que ocupe todo el ancho.
+     ALERT BANNER — bloque rojo centrado, va dentro
+     del contenedor `.page`, justo abajo del hero.
+     Estilo "tarjeta de alerta" con borde redondeado.
      ============================================ */
   .top-alert-banner {
+    display: inline-block;
     background: #c0202c;
     color: #ffffff;
     text-align: center;
-    padding: 14px 20px;
+    padding: 16px 28px;
     font-family: var(--display);
-    font-size: 16px;
+    font-size: 17px;
     font-weight: 600;
     letter-spacing: 0.2px;
-    line-height: 1.35;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 4px 24px rgba(192, 32, 44, 0.35);
+    line-height: 1.4;
+    border-radius: 14px;
+    box-shadow: 0 12px 32px rgba(192, 32, 44, 0.35);
+    margin: 0 auto 36px;
+    max-width: 720px;
   }
 
-  .top-alert-banner strong { font-weight: 800; letter-spacing: 1px; }
+  .top-alert-banner strong { font-weight: 800; letter-spacing: 0.5px; }
 
   .hero { margin-bottom: 48px; }
 
@@ -556,7 +559,7 @@
 
     .oto-eyebrow-text { font-size: 10.5px; letter-spacing: 1.5px; }
 
-    .top-alert-banner { font-size: 14px; padding: 12px 14px; }
+    .top-alert-banner { font-size: 14.5px; padding: 14px 18px; margin-bottom: 28px; border-radius: 12px; }
 
     .oto-warning { padding: 14px 16px; }
     .oto-warning-text { font-size: 14.5px; }
@@ -573,17 +576,18 @@
 </head>
 <body>
 
-  {# Banner rojo full-width arriba — apela a urgencia con scarcity ("primeras 300") #}
-  <div class="top-alert-banner" role="alert">
-    ⚠️ Pero espera... hay algo que <strong>SOLO LAS PRIMERAS 300 PERSONAS</strong> van a ver
-  </div>
-
   <main class="page">
 
     <section class="hero">
       <h1 class="hero-title">¡Felicitaciones!</h1>
       <p class="hero-eyebrow">Te acabás de meter en el juego de los grandes.</p>
     </section>
+
+    {# Banner rojo — apela a urgencia con scarcity ("primeras 300") justo
+       después del hero, para enganchar la atención antes de la card de oferta. #}
+    <div class="top-alert-banner" role="alert">
+      ⚠️ Pero espera... hay algo que <strong>SOLO LAS PRIMERAS 300 PERSONAS</strong> van a ver
+    </div>
 
     <section class="oto">
       <div class="oto-card">

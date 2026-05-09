@@ -448,6 +448,22 @@ curl -X POST "http://localhost:8001/api/upsell/confirm/{TOKEN_DEL_PASO_1}" \
   -d '{"amount": 50, "description": "Bonus pack", "order_id": "TEST_OTO_1"}'
 ```
 
+### Previsualizar la página de OTO sin hacer una compra (QA visual)
+
+Para revisar copy, diseño, banner rojo, FAB de WhatsApp, etc. **sin pasar por todo el flujo de pago**, hay un endpoint de preview con un `payment_id` arbitrario:
+
+```
+https://dlocal.brunoelleon.com/upsell/preview-test                       → precio default ($197)
+https://dlocal.brunoelleon.com/upsell/preview-test?preview_variant=A     → fuerza variante A ($197)
+https://dlocal.brunoelleon.com/upsell/preview-test?preview_variant=B     → fuerza variante B ($147)
+```
+
+- No requiere ninguna env var nueva.
+- Renderiza el HTML completo (banner rojo, copy, FAB, timer, todo).
+- El timer arranca en 10:00 y se persiste en `localStorage` por `payment_id` — para resetearlo, usá un ID distinto (`preview-test-2`, etc.) o limpiá `localStorage`.
+- **No registra** vistas en el dashboard del A/B test (la única ruta que registra views es `/upsell?order_id=...`, que es la que viene del flujo real de dLocal).
+- Si clickeás "Sí, quiero aprovechar la oferta." → va a tirar error porque el `payment_id` no existe en dLocal. Es esperado: la URL es solo para QA visual, no para confirmar cobros.
+
 ## 📞 Soporte
 
 Para problemas o dudas:
