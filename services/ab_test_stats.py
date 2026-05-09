@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 def _empty_variant() -> Dict[str, Any]:
     """Counters por variante. Mantener sincronizado con `_migrate_state()`."""
     return {
-        "views": 0,        # entró a la página de upsell
-        "purchases": 0,    # cliqueó "Sí, sumar 3 meses" Y el cobro fue PAID
-        "declines": 0,     # cliqueó explícitamente "No, gracias"
+        "views": 0,              # entró a la página de upsell
+        "purchases": 0,          # cliqueó "Sí" Y el cobro fue PAID
+        "declines": 0,           # cliqueó explícitamente "No, gracias"
+        "advisor_requests": 0,   # cliqueó "Hablar con asesor" (FAB de WhatsApp)
         "revenue": 0.0,
     }
 
@@ -138,6 +139,20 @@ class ABTestStats:
             self._state["last_event_at"] = time.time()
             self._save_unsafe()
 
+    def record_advisor_request(self, variant: Optional[str]) -> None:
+        """Suma un click en 'Hablar con asesor' al contador de la variante.
+
+        OJO: este NO suma a 'declines' ni a 'purchases' — es una métrica aparte
+        ('aún no decidió, está pidiendo info'). Permite distinguir entre
+        clientes que rechazan vs los que necesitan más info.
+        """
+        if variant not in ("A", "B"):
+            return
+        with self._lock:
+            self._state["variants"][variant]["advisor_requests"] += 1
+            self._state["last_event_at"] = time.time()
+            self._save_unsafe()
+
     def reset(self) -> None:
         """Resetea todas las stats a cero. Útil cuando empieza un test nuevo."""
         with self._lock:
@@ -159,19 +174,23 @@ class ABTestStats:
             views = v["views"]
             purchases = v["purchases"]
             declines = v["declines"]
+            advisor_requests = v["advisor_requests"]
             revenue = v["revenue"]
-            # "Sin acción" = visitas que no clickearon ni Sí ni No (cerraron pestaña).
-            # Puede dar negativo en casos de borde (cliente recarga después de comprar)
-            # — lo clampeamos a 0 para que no confunda en el dashboard.
-            no_action = max(0, views - purchases - declines)
+            # "Sin acción" = visitas que no clickearon NADA (cerraron pestaña).
+            # Cualquier interacción (sí, no, asesor) cuenta como "tomó acción".
+            # Puede dar negativo en casos de borde (cliente recarga después de
+            # interactuar) — lo clampeamos a 0 para que no confunda en el dashboard.
+            no_action = max(0, views - purchases - declines - advisor_requests)
             return {
                 "views": views,
                 "purchases": purchases,
                 "declines": declines,
+                "advisor_requests": advisor_requests,
                 "no_action": no_action,
                 "revenue": revenue,
                 "conversion_rate": (purchases / views) if views > 0 else 0.0,
                 "decline_rate": (declines / views) if views > 0 else 0.0,
+                "advisor_rate": (advisor_requests / views) if views > 0 else 0.0,
                 "revenue_per_visitor": (revenue / views) if views > 0 else 0.0,
             }
 

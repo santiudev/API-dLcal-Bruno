@@ -76,6 +76,19 @@ class Settings(BaseSettings):
     # montar un Disk en /data y dejar este path así para que sobreviva redeploys.
     ab_test_data_path: str = "/data/ab_test_stats.json"
 
+    # Botón flotante "Hablar con un asesor" en la página de upsell.
+    # Cuando está habilitado, aparece un FAB verde abajo a la derecha que
+    # abre WhatsApp con un mensaje pre-cargado. El click se trackea como
+    # métrica aparte en el A/B test (no suma a declines ni a purchases).
+    advisor_button_enabled: bool = True
+    # Teléfono en formato internacional SIN el "+" (ej: 5491123456789).
+    # Si queda vacío, el botón NO se renderiza aunque advisor_button_enabled=True.
+    advisor_whatsapp_phone: Optional[str] = None
+    # Mensaje pre-cargado en el WhatsApp. Se URL-encodea automáticamente.
+    advisor_whatsapp_message: str = (
+        "Hola, vi la oferta del upsell y quiero entender más antes de decidir."
+    )
+
     # Application Settings
     environment: str = "development"
     log_level: str = "INFO"

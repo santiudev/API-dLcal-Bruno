@@ -687,6 +687,14 @@ def _render_upsell_template(
         pricing = _resolve_upsell_pricing(None)
 
     decline_url = settings.upsell_decline_url or "/"
+
+    # El botón flotante de WhatsApp solo se muestra si está habilitado Y hay un
+    # número configurado. Si falta el número, no renderizamos el botón aunque el
+    # toggle esté en true (no tiene sentido mostrarlo si no funciona).
+    advisor_enabled = bool(
+        settings.advisor_button_enabled and settings.advisor_whatsapp_phone
+    )
+
     return templates.TemplateResponse(
         "upsell.html",
         {
@@ -696,6 +704,7 @@ def _render_upsell_template(
             "upsell_description": pricing["description"],
             "decline_url": decline_url,
             "meta_pixel_id": settings.meta_pixel_id,
+            "advisor_enabled": advisor_enabled,
         },
     )
 
@@ -766,20 +775,89 @@ async def render_upsell_page_querystring(request: Request):
 
 
 @app.get("/upsell/{payment_id}", tags=["Upsell"], summary="Página de oferta upsell (vía path param)")
-async def render_upsell_page(request: Request, payment_id: str):
+async def render_upsell_page(
+    request: Request,
+    payment_id: str,
+    preview_variant: Optional[str] = None,
+):
     """
     Renderiza la página de oferta de upsell ("Pero antes... préstame atención acá").
 
-    Versión con path param — útil para linkear directo. El flujo "real" desde
-    dLocal usa `GET /upsell?payment_id=...` (ver endpoint de arriba).
+    Versión con path param — útil para linkear directo y para QA visual.
+    El flujo "real" desde dLocal usa `GET /upsell?order_id=...` (ver endpoint de arriba).
+
+    Query param opcional `preview_variant=A|B` → fuerza el precio mostrado para
+    previsualizar las dos variantes del A/B test sin tener que hacer el flujo
+    de pago entero. SOLO afecta lo visual; si igual hacés clic en "Sí" se va
+    a buscar el payment_id en dLocal y va a fallar (porque es un ID inventado).
+
+    Ejemplos para QA:
+        /upsell/preview-test                      → precio default ($197)
+        /upsell/preview-test?preview_variant=A    → fuerza variante A ($197)
+        /upsell/preview-test?preview_variant=B    → fuerza variante B ($147)
 
     El template incluye:
     - Pixel de Meta (PageView + ViewContent + InitiateCheckout en el botón)
     - Timer de 10 minutos persistido en localStorage
-    - Botón "Sí, sumar 3 meses" → /api/upsell/click/{payment_id}
-    - Botón "No, gracias" → UPSELL_DECLINE_URL
+    - FAB de WhatsApp si está habilitado
     """
-    return _render_upsell_template(request, payment_id)
+    pricing = None
+    if preview_variant:
+        variant = preview_variant.upper().strip()
+        if variant in ("A", "B"):
+            pricing = _resolve_upsell_pricing(variant)
+    return _render_upsell_template(request, payment_id, pricing=pricing)
+
+
+@app.get(
+    "/api/upsell/advisor/{payment_id}",
+    tags=["Upsell"],
+    summary="Endpoint para el botón flotante 'Hablar con un asesor'",
+)
+async def upsell_advisor_redirect(payment_id: str):
+    """
+    Endpoint para el botón flotante "Hablar con un asesor" — registra el
+    click como métrica aparte (NO como decline) y redirige a WhatsApp con
+    un mensaje pre-cargado.
+
+    El registro es best-effort: si falla por cualquier razón, igual redirigimos
+    al cliente para no romper su experiencia.
+    """
+    from urllib.parse import quote
+    from fastapi.responses import RedirectResponse
+    from fastapi import HTTPException
+
+    phone = (settings.advisor_whatsapp_phone or "").strip()
+    if not phone:
+        # Si el botón está mal configurado, no podemos redirigir a ningún lado.
+        # Devolvemos 404 — esto solo pasaría si alguien llega al endpoint
+        # cuando el botón ni siquiera se renderizó en la página.
+        raise HTTPException(status_code=404, detail="Advisor button not configured")
+
+    # Normalizamos el teléfono: solo dígitos (wa.me requiere formato sin "+",
+    # sin espacios y sin guiones). Aceptamos input "humano" como "+54 9 11..."
+    phone_clean = "".join(c for c in phone if c.isdigit())
+    message = quote(settings.advisor_whatsapp_message or "")
+    whatsapp_url = f"https://wa.me/{phone_clean}?text={message}"
+
+    try:
+        cache_entry = upsell_cache.get_by_payment_id(payment_id)
+        if cache_entry:
+            ab_variant = cache_entry.get("ab_variant")
+            ab_test_stats.record_advisor_request(ab_variant)
+            logger.info(
+                f"Upsell ADVISOR REQUEST for payment {payment_id} "
+                f"(ab_variant={ab_variant or '-'}) → redirecting to WhatsApp"
+            )
+        else:
+            logger.warning(
+                f"Advisor request registered but payment_id={payment_id} not in cache "
+                f"(server restart o >30 min); request will not be counted in stats"
+            )
+    except Exception as e:
+        logger.error(f"Failed to record advisor request for payment {payment_id}: {e}")
+
+    return RedirectResponse(url=whatsapp_url)
 
 
 @app.get(

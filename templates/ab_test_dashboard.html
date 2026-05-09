@@ -277,10 +277,10 @@
     letter-spacing: 0;
   }
 
-  /* Secondary metrics row — 2 filas de 3 para dar espacio a declines + abandono */
+  /* Secondary metrics — auto-fit para acomodar 8 metrics elegantemente */
   .metrics-secondary {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
     gap: 10px;
   }
 
@@ -309,6 +309,8 @@
   .metric-secondary.is-good .metric-secondary-value { color: var(--green); }
   .metric-secondary.is-bad  .metric-secondary-value { color: var(--red); }
   .metric-secondary.is-soft .metric-secondary-value { color: var(--text-muted); }
+  /* Asesor = ámbar: ni bueno ni malo, "necesita más info" */
+  .metric-secondary.is-info .metric-secondary-value { color: var(--yellow); }
 
   /* Comparison row */
   .comparison {
@@ -497,6 +499,10 @@
                 <div class="metric-secondary-label">RECHAZOS</div>
                 <div class="metric-secondary-value">{{ d.declines }}</div>
               </div>
+              <div class="metric-secondary is-info">
+                <div class="metric-secondary-label">PIDIÓ ASESOR</div>
+                <div class="metric-secondary-value">{{ d.advisor_requests }}</div>
+              </div>
               <div class="metric-secondary is-soft">
                 <div class="metric-secondary-label">SIN ACCIÓN</div>
                 <div class="metric-secondary-value">{{ d.no_action }}</div>
@@ -504,6 +510,10 @@
               <div class="metric-secondary">
                 <div class="metric-secondary-label">DECLINE %</div>
                 <div class="metric-secondary-value">{{ '%.1f'|format(d.decline_rate * 100) }}%</div>
+              </div>
+              <div class="metric-secondary">
+                <div class="metric-secondary-label">ASESOR %</div>
+                <div class="metric-secondary-value">{{ '%.1f'|format(d.advisor_rate * 100) }}%</div>
               </div>
               <div class="metric-secondary">
                 <div class="metric-secondary-label">REVENUE</div>
@@ -518,10 +528,12 @@
       {% set max_views = [variants.A.views, variants.B.views]|max %}
       {% set max_purchases = [variants.A.purchases, variants.B.purchases]|max %}
       {% set max_declines = [variants.A.declines, variants.B.declines]|max %}
+      {% set max_advisor = [variants.A.advisor_requests, variants.B.advisor_requests]|max %}
       {% set max_no_action = [variants.A.no_action, variants.B.no_action]|max %}
       {% set max_revenue = [variants.A.revenue, variants.B.revenue]|max %}
       {% set max_cr = [variants.A.conversion_rate, variants.B.conversion_rate]|max %}
       {% set max_dr = [variants.A.decline_rate, variants.B.decline_rate]|max %}
+      {% set max_ar = [variants.A.advisor_rate, variants.B.advisor_rate]|max %}
       {% set max_rpv = [variants.A.revenue_per_visitor, variants.B.revenue_per_visitor]|max %}
 
       <div class="comparison">
@@ -552,9 +564,11 @@
         {{ bar('Vistas', variants.A.views, variants.B.views, max_views) }}
         {{ bar('Compras', variants.A.purchases, variants.B.purchases, max_purchases) }}
         {{ bar('Rechazos (No, gracias)', variants.A.declines, variants.B.declines, max_declines) }}
+        {{ bar('Pidió asesor', variants.A.advisor_requests, variants.B.advisor_requests, max_advisor) }}
         {{ bar('Sin acción', variants.A.no_action, variants.B.no_action, max_no_action) }}
         {{ bar('Conversion rate', variants.A.conversion_rate, variants.B.conversion_rate, max_cr, is_pct=True) }}
         {{ bar('Decline rate', variants.A.decline_rate, variants.B.decline_rate, max_dr, is_pct=True) }}
+        {{ bar('Asesor rate', variants.A.advisor_rate, variants.B.advisor_rate, max_ar, is_pct=True) }}
         {{ bar('Revenue total', variants.A.revenue, variants.B.revenue, max_revenue, fmt='%.2f', is_money=True) }}
         {{ bar('Revenue per visitor', variants.A.revenue_per_visitor, variants.B.revenue_per_visitor, max_rpv, fmt='%.2f', is_money=True) }}
       </div>
@@ -565,11 +579,13 @@
         Esto es lo correcto en A/B test de precios: a veces un precio más bajo convierte más
         pero igual rinde menos plata por visitante. Lo que importa al final es cuánto se factura.<br><br>
 
-        <strong>Vistas / Compras / Rechazos / Sin acción:</strong>
+        <strong>Vistas / Compras / Rechazos / Pidió asesor / Sin acción:</strong>
         Vistas = entró a la página. Compras = clickeó "Sí" Y el cobro fue PAID.
-        Rechazos = clickeó explícitamente "No, gracias". Sin acción = cerró la pestaña sin elegir.
-        Un decline rate alto puede indicar que el precio se percibe caro; un "sin acción" alto
-        puede indicar que el copy o el diseño no convencen.<br><br>
+        Rechazos = clickeó explícitamente "No, gracias". Pidió asesor = clickeó el FAB
+        de WhatsApp para hablar antes de decidir. Sin acción = cerró la pestaña sin elegir
+        nada. Un decline rate alto puede indicar que el precio se percibe caro;
+        un "asesor rate" alto puede indicar que la oferta confunde o necesita más explicación;
+        un "sin acción" alto puede indicar que el copy o el diseño no convencen.<br><br>
 
         <strong>Confianza estadística:</strong> z-test de dos proporciones sobre el conversion rate.
         Recién a partir de ~95% se considera confiable. Con &lt;100 vistas por variante,
@@ -589,8 +605,8 @@
       btn.addEventListener('click', async function () {
         var ok1 = window.confirm(
           '¿Resetear TODAS las estadísticas del A/B test?\n\n' +
-          'Esto borra vistas, compras, rechazos y revenue de ambas variantes.\n' +
-          'No se puede deshacer.'
+          'Esto borra vistas, compras, rechazos, pedidos de asesor y revenue\n' +
+          'de ambas variantes. No se puede deshacer.'
         );
         if (!ok1) return;
 

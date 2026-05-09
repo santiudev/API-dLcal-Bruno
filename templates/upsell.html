@@ -79,6 +79,27 @@
     text-align: center;
   }
 
+  /* ============================================
+     TOP ALERT BANNER — full-width, fondo rojo,
+     letras blancas. Va antes del hero, fuera del
+     contenedor `.page` para que ocupe todo el ancho.
+     ============================================ */
+  .top-alert-banner {
+    background: #c0202c;
+    color: #ffffff;
+    text-align: center;
+    padding: 14px 20px;
+    font-family: var(--display);
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    line-height: 1.35;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 4px 24px rgba(192, 32, 44, 0.35);
+  }
+
+  .top-alert-banner strong { font-weight: 800; letter-spacing: 1px; }
+
   .hero { margin-bottom: 48px; }
 
   .hero-eyebrow {
@@ -219,6 +240,75 @@
     max-width: 560px;
     margin-left: auto;
     margin-right: auto;
+  }
+
+  /* ============================================
+     WARNING BLOCK — "NUNCA MÁS VERÁS ESTA OFERTA"
+     Bloque de urgencia que vive entre el claim y el
+     headline del precio. Estilo más "tipo nota" para
+     diferenciarlo del cuerpo principal.
+     ============================================ */
+  .oto-warning {
+    background: rgba(192, 32, 44, 0.06);
+    border-left: 3px solid #c0202c;
+    border-radius: 6px;
+    padding: 18px 22px;
+    margin: 0 auto 24px;
+    max-width: 600px;
+    text-align: left;
+  }
+
+  .oto-warning-title {
+    color: #ff6b75;
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+  }
+
+  .oto-warning-text {
+    color: var(--text-body);
+    font-size: 15.5px;
+    line-height: 1.55;
+    margin-bottom: 10px;
+  }
+
+  .oto-warning-text:last-child { margin-bottom: 0; }
+
+  .oto-warning-text strong {
+    color: var(--text-white);
+    font-weight: 700;
+  }
+
+  .oto-anchor-price {
+    color: var(--text-white);
+    font-weight: 700;
+  }
+
+  /* Headline directamente arriba de la tarjeta del precio */
+  .oto-price-headline {
+    color: var(--violet-light);
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 1.8px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+
+  /* Bridge: "Solo por lo que dure este contador..." — entre el headline
+     y la tarjeta del precio. Tono normal, no muy llamativo. */
+  .oto-price-bridge {
+    color: var(--text-body);
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 0 auto 16px;
+    max-width: 520px;
+  }
+  .oto-price-bridge strong {
+    color: var(--text-white);
+    font-weight: 700;
   }
 
   .oto-price-box {
@@ -365,6 +455,52 @@
     opacity: 0.78;
   }
 
+  /* ============================================
+     FLOATING ACTION BUTTON — "Hablar con asesor"
+     Posición fija abajo-derecha. En desktop muestra
+     el texto completo; en mobile colapsa al ícono
+     para no tapar contenido.
+     ============================================ */
+  .advisor-fab {
+    position: fixed;
+    bottom: 22px;
+    right: 22px;
+    z-index: 9000;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: #25d366;        /* Verde oficial WhatsApp */
+    color: #ffffff;
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 14px;
+    line-height: 1.2;
+    text-decoration: none;
+    padding: 14px 18px;
+    border-radius: 999px;
+    box-shadow:
+      0 8px 24px rgba(37, 211, 102, 0.35),
+      0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+    max-width: calc(100vw - 44px);
+  }
+
+  .advisor-fab:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 28px rgba(37, 211, 102, 0.45),
+      0 4px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .advisor-fab svg { flex-shrink: 0; }
+
+  .advisor-fab-text {
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   @media (max-width: 768px) {
     .page { padding: 40px 16px 64px; }
 
@@ -419,10 +555,28 @@
     .oto-claim { font-size: 17px; }
 
     .oto-eyebrow-text { font-size: 10.5px; letter-spacing: 1.5px; }
+
+    .top-alert-banner { font-size: 14px; padding: 12px 14px; }
+
+    .oto-warning { padding: 14px 16px; }
+    .oto-warning-text { font-size: 14.5px; }
+    .oto-price-headline { font-size: 12px; letter-spacing: 1.4px; }
+    .oto-price-bridge { font-size: 14px; }
+  }
+
+  /* En mobile el FAB colapsa al ícono para no tapar los botones de la card */
+  @media (max-width: 600px) {
+    .advisor-fab { padding: 14px; gap: 0; }
+    .advisor-fab-text { display: none; }
   }
 </style>
 </head>
 <body>
+
+  {# Banner rojo full-width arriba — apela a urgencia con scarcity ("primeras 300") #}
+  <div class="top-alert-banner" role="alert">
+    ⚠️ Pero espera... hay algo que <strong>SOLO LAS PRIMERAS 300 PERSONAS</strong> van a ver
+  </div>
 
   <main class="page">
 
@@ -464,6 +618,32 @@
           Con esta oferta <span class="accent-violet">duplicarás tu permanencia</span> a la mentoría.
         </p>
 
+        {# Bloque de urgencia con ancla de precio: "$997 si renovás después" sirve
+           como referencia para que el precio del upsell ($197/$147) se perciba
+           como un descuento masivo. Estilo intencionalmente más sobrio para
+           que se lea como "nota importante" y no como ad. #}
+        <div class="oto-warning">
+          <div class="oto-warning-title">⚠ NUNCA MÁS VERÁS ESTA OFERTA</div>
+          <p class="oto-warning-text">
+            Esta es la <strong>única oportunidad</strong> que tendrás para aprovechar
+            la posibilidad de extender tu lugar en
+            <strong>la Mentoría León por 3 meses más</strong>.
+          </p>
+          <p class="oto-warning-text">
+            En el momento en que cierres esta página, si deseas renovar tu estadía
+            en la mentoría costará <span class="oto-anchor-price">$997</span>.
+          </p>
+        </div>
+
+        <div class="oto-price-headline">
+          Duplica tu permanencia en la mentoría por un precio único
+        </div>
+
+        <p class="oto-price-bridge">
+          Solo por lo que dure este contador podrás ingresar por
+          <strong>USD ${{ '%g' % upsell_amount }}</strong>
+        </p>
+
         <div class="oto-price-box">
           <div class="oto-price-row">
             <div class="oto-months-tile">
@@ -490,13 +670,13 @@
           {# Botón "Sí" → endpoint que hace el cobro one-click. El payment_id viene del path. #}
           <a id="upsellAcceptBtn"
              href="/api/upsell/click/{{ payment_id }}"
-             class="oto-btn oto-btn-primary">Sí, sumar 3 meses</a>
+             class="oto-btn oto-btn-primary">Sí, quiero aprovechar la oferta.</a>
 
           {# Botón "No, gracias" → pasa por la API para trackear el rechazo en
              las stats del A/B test, después redirige al UPSELL_DECLINE_URL. #}
           <a id="upsellDeclineBtn"
              href="/api/upsell/decline/{{ payment_id }}"
-             class="oto-btn oto-btn-secondary">No, gracias</a>
+             class="oto-btn oto-btn-secondary">No, gracias. Entiendo que estoy rechazando una oferta única.</a>
         </div>
 
         <div class="oto-footer">⚠ Esta oferta no volverá a aparecer.</div>
@@ -505,6 +685,22 @@
     </section>
 
   </main>
+
+  {% if advisor_enabled %}
+  {# FAB "Hablar con un asesor" — el endpoint registra el click en stats y
+     redirige a WhatsApp con un mensaje pre-cargado. NO suma a declines en
+     el A/B test, se cuenta como métrica aparte (necesitan más info, no
+     rechazaron explícitamente). #}
+  <a id="advisorFab"
+     href="/api/upsell/advisor/{{ payment_id }}"
+     class="advisor-fab"
+     aria-label="Hablar con un asesor por WhatsApp">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.464 3.488"/>
+    </svg>
+    <span class="advisor-fab-text">Hablar con un asesor</span>
+  </a>
+  {% endif %}
 
 <script>
   // ============================================
@@ -554,20 +750,42 @@
   {% if meta_pixel_id %}
   // ============================================
   // META PIXEL — InitiateCheckout al hacer clic en "Sí"
+  // y CustomEvent al hacer clic en el FAB de WhatsApp
   // ============================================
   (function () {
+    if (typeof fbq !== 'function') return;
+
     var btn = document.getElementById('upsellAcceptBtn');
-    if (!btn || typeof fbq !== 'function') return;
-    btn.addEventListener('click', function () {
-      try {
-        fbq('track', 'InitiateCheckout', {
-          content_name: 'Upsell Extension 3 meses',
-          content_category: 'upsell',
-          value: {{ upsell_amount }},
-          currency: 'USD'
-        });
-      } catch (err) { /* silently ignore */ }
-    });
+    if (btn) {
+      btn.addEventListener('click', function () {
+        try {
+          fbq('track', 'InitiateCheckout', {
+            content_name: 'Upsell Extension 3 meses',
+            content_category: 'upsell',
+            value: {{ upsell_amount }},
+            currency: 'USD'
+          });
+        } catch (err) { /* silently ignore */ }
+      });
+    }
+
+    // CustomEvent "AdvisorRequest" — sirve para crear conversión custom
+    // en Meta y filtrar por gente que pidió hablar con asesor antes de
+    // decidir. NO es un Lead estándar para no contaminar audiencias de
+    // remarketing existentes.
+    var fab = document.getElementById('advisorFab');
+    if (fab) {
+      fab.addEventListener('click', function () {
+        try {
+          fbq('trackCustom', 'AdvisorRequest', {
+            content_name: 'Upsell Extension 3 meses',
+            content_category: 'upsell',
+            value: {{ upsell_amount }},
+            currency: 'USD'
+          });
+        } catch (err) { /* silently ignore */ }
+      });
+    }
   })();
   {% endif %}
 </script>

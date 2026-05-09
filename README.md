@@ -302,10 +302,11 @@ URL: `https://dlocal.brunoelleon.com/admin/ab-test/stats` — el browser pide us
 
 Métricas que muestra **por variante**:
 - **Vistas** — entró a la página de upsell
-- **Compras** — clickeó "Sí" Y el cobro fue PAID
+- **Compras** — clickeó "Sí, quiero aprovechar la oferta." Y el cobro fue PAID
 - **Rechazos** — clickeó explícitamente "No, gracias"
-- **Sin acción** — vio la página y cerró la pestaña sin elegir nada (calculado: `vistas - compras - rechazos`)
-- **Conversion rate, decline rate, revenue total, revenue per visitor**
+- **Pidió asesor** — clickeó el FAB de WhatsApp para hablar antes de decidir
+- **Sin acción** — vio la página y cerró sin clickear nada (calculado: `vistas - compras - rechazos - pidió_asesor`)
+- **Conversion rate, decline rate, asesor rate, revenue total, revenue per visitor**
 
 Métricas globales:
 - **Ganador por revenue per visitor** (la métrica correcta para A/B de precios — un precio bajo puede convertir más pero rendir menos plata)
@@ -313,6 +314,7 @@ Métricas globales:
 
 Cómo interpretar:
 - **Decline rate alto** → el precio se percibe caro (la oferta no convence)
+- **Asesor rate alto** → la oferta confunde o necesita más explicación (no la rechazan, piden info)
 - **Sin acción alto** → el copy o el diseño no enganchan (ni siquiera consideran responder)
 
 Endpoints relacionados:
@@ -321,6 +323,21 @@ Endpoints relacionados:
 - `POST /admin/ab-test/reset` → resetea TODOS los counters a cero (también disponible como botón "↻ RESET TOTAL" en el dashboard, con doble confirmación — pensado para limpiar después de QA antes de salir a producción real)
 
 Si `ADMIN_USERNAME`/`PASSWORD` no están seteados, los endpoints devuelven `503` (acceso deshabilitado por seguridad).
+
+#### Botón flotante "Hablar con un asesor" (WhatsApp)
+
+En la página de upsell aparece un FAB verde abajo a la derecha que abre WhatsApp con un mensaje pre-cargado. Útil para clientes que necesitan más info antes de decidir y se irían sin clickear nada.
+
+```env
+ADVISOR_BUTTON_ENABLED=true
+ADVISOR_WHATSAPP_PHONE=5491123456789      # formato internacional, sin "+"
+ADVISOR_WHATSAPP_MESSAGE=Hola, vi la oferta del upsell y quiero entender más.
+```
+
+- Si `ADVISOR_WHATSAPP_PHONE` queda vacío, el botón **NO se renderiza** (aunque el toggle esté en `true`).
+- El click se trackea como métrica aparte (`advisor_requests`) — **no suma a declines** ni a purchases.
+- También dispara un `trackCustom('AdvisorRequest')` en Meta Pixel para que puedas crear conversiones custom y filtrar audiencias en Ads Manager.
+- En desktop muestra el ícono + texto; en mobile colapsa al ícono para no tapar los botones de la card.
 
 #### Persistencia del A/B test
 

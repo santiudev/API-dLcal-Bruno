@@ -108,3 +108,12 @@ services:
         sync: false
       - key: META_ACCESS_TOKEN
         sync: false
+
+      # Botón flotante "Hablar con un asesor" en la página de upsell.
+      # Si ADVISOR_WHATSAPP_PHONE queda vacío, el botón no se renderiza.
+      - key: ADVISOR_BUTTON_ENABLED
+        value: "true"
+      - key: ADVISOR_WHATSAPP_PHONE
+        sync: false           # formato internacional sin "+", ej: 5491123456789
+      - key: ADVISOR_WHATSAPP_MESSAGE
+        value: "Hola, vi la oferta del upsell y quiero entender más antes de decidir."
