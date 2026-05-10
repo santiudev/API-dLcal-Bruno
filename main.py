@@ -729,6 +729,30 @@ def _render_upsell_template(
     )
 
 
+def _hotmart_funnel_template_response(request: Request, template_name: str):
+    """Contexto compartido: funnel Hotmart producción vs página de prueba."""
+    decline_url = settings.upsell_decline_url or "/gracias-siguientes-pasos"
+    advisor_enabled = bool(
+        settings.advisor_button_enabled and settings.advisor_whatsapp_phone
+    )
+    advisor_whatsapp_url = None
+    if advisor_enabled and settings.advisor_whatsapp_phone:
+        advisor_whatsapp_url = (
+            f"https://wa.me/{settings.advisor_whatsapp_phone}"
+            f"?text={quote(settings.advisor_whatsapp_message)}"
+        )
+    return templates.TemplateResponse(
+        template_name,
+        {
+            "request": request,
+            "meta_pixel_id": settings.meta_pixel_id,
+            "decline_url": decline_url,
+            "advisor_enabled": advisor_enabled,
+            "advisor_whatsapp_url": advisor_whatsapp_url,
+        },
+    )
+
+
 @app.get(
     "/hotmart-sales-funnel",
     tags=["Hotmart"],
@@ -743,27 +767,20 @@ async def hotmart_sales_funnel_page(request: Request):
     En Hotmart, usar esta URL como página destino tras la compra, por ejemplo:
     https://<tu-dominio>/hotmart-sales-funnel
     """
-    decline_url = settings.upsell_decline_url or "/gracias-siguientes-pasos"
-    advisor_enabled = bool(
-        settings.advisor_button_enabled and settings.advisor_whatsapp_phone
-    )
-    advisor_whatsapp_url = None
-    if advisor_enabled and settings.advisor_whatsapp_phone:
-        advisor_whatsapp_url = (
-            f"https://wa.me/{settings.advisor_whatsapp_phone}"
-            f"?text={quote(settings.advisor_whatsapp_message)}"
-        )
+    return _hotmart_funnel_template_response(request, "hotmart_sales_funnel.html")
 
-    return templates.TemplateResponse(
-        "hotmart_sales_funnel.html",
-        {
-            "request": request,
-            "meta_pixel_id": settings.meta_pixel_id,
-            "decline_url": decline_url,
-            "advisor_enabled": advisor_enabled,
-            "advisor_whatsapp_url": advisor_whatsapp_url,
-        },
-    )
+
+@app.get(
+    "/hotmart-sales-funnel-test",
+    tags=["Hotmart"],
+    summary="Misma landing que /hotmart-sales-funnel; widget con init().mount() para pruebas",
+)
+async def hotmart_sales_funnel_test_page(request: Request):
+    """
+    Copia de la landing Hotmart para probar otra oferta / funnel en el panel.
+    URL ejemplo: https://<tu-dominio>/hotmart-sales-funnel-test
+    """
+    return _hotmart_funnel_template_response(request, "hotmart_sales_funnel_test.html")
 
 
 @app.get(
