@@ -85,7 +85,7 @@ services:
       - key: UPSELL_DESCRIPTION
         value: Mentoría León - Extensión de 3 meses
       - key: UPSELL_DECLINE_URL
-        sync: false           # ej: https://bruno.11demayo.com/graciasn
+        sync: false           # ej: https://dlocal.brunoelleon.com/gracias-siguientes-pasos
 
       # A/B test del upsell
       - key: UPSELL_AB_TEST_ENABLED

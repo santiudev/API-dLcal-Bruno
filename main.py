@@ -673,6 +673,25 @@ def _resolve_upsell_pricing(ab_variant: Optional[str]) -> dict:
     }
 
 
+def _render_thanks_next_steps(
+    request: Request,
+    page_title: str,
+    heading: str,
+    success_eyebrow: Optional[str] = None,
+):
+    """Renderiza `thanks_next_steps.html` (email + comunidad + cierre). Sin dLocal."""
+    return templates.TemplateResponse(
+        "thanks_next_steps.html",
+        {
+            "request": request,
+            "page_title": page_title,
+            "heading": heading,
+            "success_eyebrow": success_eyebrow,
+            "meta_pixel_id": settings.meta_pixel_id,
+        },
+    )
+
+
 def _render_upsell_template(
     request: Request,
     payment_id: str,
@@ -706,6 +725,65 @@ def _render_upsell_template(
             "meta_pixel_id": settings.meta_pixel_id,
             "advisor_enabled": advisor_enabled,
         },
+    )
+
+
+@app.get(
+    "/hotmart-sales-funnel",
+    tags=["Hotmart"],
+    summary="Página post-compra con Sales Funnel Widget (Hotmart)",
+)
+async def hotmart_sales_funnel_page(request: Request):
+    """
+    Embudo post-compra Hotmart (checkout-elements). No usa dLocal ni variables
+    de upsell de esta API; solo sirve el HTML con el widget oficial.
+
+    En Hotmart, usar esta URL como página destino tras la compra, por ejemplo:
+    https://<tu-dominio>/hotmart-sales-funnel
+    """
+    return templates.TemplateResponse(
+        "hotmart_sales_funnel.html",
+        {"request": request},
+    )
+
+
+@app.get(
+    "/gracias-extension-3m",
+    tags=["Gracias"],
+    summary="Gracias por comprar el OTO (extensión 3 meses, dLocal)",
+)
+async def thanks_oto_extension_3m(request: Request):
+    """
+    Pantalla post-compra cuando el cliente acepta y paga el upsell one-click.
+
+    Pensada para `UPSELL_SUCCESS_URL`, por ejemplo:
+    https://<tu-dominio>/gracias-extension-3m
+    """
+    return _render_thanks_next_steps(
+        request,
+        page_title="¡Listo! — Mentoría León",
+        heading="¿Qué sigue ahora?",
+        success_eyebrow="¡Gracias! Tu extensión de 3 meses ya quedó activa.",
+    )
+
+
+@app.get(
+    "/gracias-siguientes-pasos",
+    tags=["Gracias"],
+    summary="Siguientes pasos (decline upsell dLocal o post-compra sin OTO / Hotmart)",
+)
+async def thanks_next_steps_common(request: Request):
+    """
+    Misma UX para quien no toma el OTO en dLocal o termina un flujo Hotmart
+    sin oferta extra: email, comunidad, mensaje de cierre.
+
+    Pensada para `UPSELL_DECLINE_URL` o páginas de gracias en Hotmart, por ejemplo:
+    https://<tu-dominio>/gracias-siguientes-pasos
+    """
+    return _render_thanks_next_steps(
+        request,
+        page_title="Bienvenido — Mentoría León",
+        heading="¿Qué sigue ahora?",
     )
 
 

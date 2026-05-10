@@ -233,7 +233,7 @@ Variables del `.env`:
 ```env
 UPSELL_AMOUNT=197                                  # Precio que se muestra
 UPSELL_DESCRIPTION=Mentoría León - Extensión 3 meses
-UPSELL_DECLINE_URL=https://bruno.11demayo.com/graciasn   # Botón "No, gracias"
+UPSELL_DECLINE_URL=https://dlocal.brunoelleon.com/gracias-siguientes-pasos   # Botón "No, gracias"
 UPSELL_SUCCESS_URL=https://...                     # Después del cobro OK
 UPSELL_ERROR_URL=https://...                       # Después de cobro fallido sin retry
 ```
