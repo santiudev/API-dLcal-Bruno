@@ -731,7 +731,6 @@ def _render_upsell_template(
 
 def _hotmart_funnel_template_response(request: Request, template_name: str):
     """Contexto compartido: funnel Hotmart producción vs página de prueba."""
-    decline_url = settings.upsell_decline_url or "/gracias-siguientes-pasos"
     advisor_enabled = bool(
         settings.advisor_button_enabled and settings.advisor_whatsapp_phone
     )
@@ -746,7 +745,6 @@ def _hotmart_funnel_template_response(request: Request, template_name: str):
         {
             "request": request,
             "meta_pixel_id": settings.meta_pixel_id,
-            "decline_url": decline_url,
             "advisor_enabled": advisor_enabled,
             "advisor_whatsapp_url": advisor_whatsapp_url,
         },

@@ -259,59 +259,6 @@
     font-weight: 700;
   }
 
-  .oto-price-box {
-    background: linear-gradient(180deg, rgba(177, 156, 217, 0.10) 0%, rgba(177, 156, 217, 0.04) 100%);
-    border: 1px solid rgba(177, 156, 217, 0.35);
-    border-radius: 14px;
-    padding: 24px 22px 22px;
-    margin-bottom: 24px;
-  }
-
-  .oto-price-row {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 24px;
-    flex-wrap: wrap;
-  }
-
-  .oto-months-tile {
-    background: rgba(177, 156, 217, 0.18);
-    border: 1px solid rgba(177, 156, 217, 0.5);
-    border-radius: 12px;
-    padding: 12px 22px;
-    color: var(--violet-light);
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.1;
-    text-align: center;
-  }
-
-  .oto-months-tile small {
-    display: block;
-    font-size: 11px;
-    color: var(--violet-muted);
-    font-weight: 400;
-    margin-top: 3px;
-  }
-
-  .oto-price-side  { text-align: left; }
-
-  .oto-price-label {
-    color: var(--text-muted);
-    font-size: 11px;
-    letter-spacing: 0.8px;
-    margin-bottom: 4px;
-  }
-
-  .oto-price-value {
-    color: var(--text-white);
-    font-size: 44px;
-    font-weight: 700;
-    line-height: 1;
-    letter-spacing: -0.8px;
-  }
-
   .oto-timer {
     display: inline-flex;
     align-items: center;
@@ -319,6 +266,7 @@
     color: var(--violet-light);
     font-size: 14px;
     font-weight: 500;
+    margin-top: 22px;
     margin-bottom: 28px;
     padding: 9px 16px;
     background: rgba(177, 156, 217, 0.08);
@@ -338,71 +286,13 @@
 
   .oto-timer.expired { opacity: 0.5; }
 
-  .hotmart-funnel-label {
-    font-family: var(--display);
-    color: var(--text-white);
-    font-size: 17px;
-    font-weight: 600;
-    margin-bottom: 10px;
-    line-height: 1.35;
-  }
-
-  .hotmart-funnel-sub {
-    color: var(--text-body);
-    font-size: 14px;
-    line-height: 1.5;
-    margin-bottom: 18px;
-    max-width: 520px;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
   .hotmart-funnel-mount {
     min-height: 280px;
-    margin-bottom: 22px;
+    margin-bottom: 0;
     border-radius: 14px;
     overflow: hidden;
     border: 1px solid rgba(177, 156, 217, 0.28);
     background: rgba(0, 0, 0, 0.35);
-  }
-
-  .oto-buttons {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    align-items: center;
-    margin-bottom: 22px;
-  }
-
-  .oto-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    max-width: 460px;
-    padding: 22px 28px;
-    border: none;
-    border-radius: 18px;
-    font-family: inherit;
-    font-size: 16px;
-    font-weight: 700;
-    text-align: center;
-    text-decoration: none;
-    cursor: pointer;
-    transition: transform 0.15s ease, background 0.2s ease;
-    letter-spacing: 0.2px;
-  }
-
-  .oto-btn-secondary {
-    background: var(--bg-btn-sec);
-    color: var(--text-white);
-    border: 1px solid #2a2a2a;
-  }
-
-  .oto-btn-secondary:hover {
-    background: #1f1f1f;
-    border-color: #3a3a3a;
-    transform: translateY(-2px);
   }
 
   .oto-footer {
@@ -475,21 +365,6 @@
     .eyebrow-mobile  { display: inline; }
 
     .oto-title { font-size: 32px; }
-
-    .oto-price-box { padding: 26px 16px 20px; }
-
-    .oto-price-row {
-      flex-direction: column;
-      gap: 14px;
-    }
-
-    .oto-price-side  { text-align: center; }
-    .oto-price-value { font-size: 38px; }
-
-    .oto-btn {
-      padding: 19px 22px;
-      max-width: 100%;
-    }
 
     .top-alert-banner { font-size: 15px; padding: 14px 20px; }
   }
@@ -573,31 +448,6 @@
           <strong>USD ${{ hotmart_upsell_usd }}</strong>
         </p>
 
-        <div class="oto-price-box">
-          <div class="oto-price-row">
-            <div class="oto-months-tile">
-              +3 meses
-              <small>extras</small>
-            </div>
-            <div class="oto-price-side">
-              <div class="oto-price-label">UN PAGO ÚNICO DE</div>
-              <div class="oto-price-value">USD ${{ hotmart_upsell_usd }}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="oto-timer" id="otoTimer">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>Esta oferta expira en</span>
-          <span class="oto-timer-value" id="otoTimerValue">10:00</span>
-        </div>
-
-        <p class="hotmart-funnel-label">Cerrá tu lugar con el botón de Hotmart</p>
-        <p class="hotmart-funnel-sub">El cuadro de abajo es el checkout seguro de Hotmart para esta oferta. Lo sumamos después del pitch para que ya estén convencidos antes de ver el formulario.</p>
-
         <!-- HOTMART - Sales Funnel Widget -->
         <div id="hotmart-sales-funnel" class="hotmart-funnel-mount"></div>
 
@@ -607,8 +457,13 @@
         </script>
         <!-- HOTMART - Sales Funnel Widget -->
 
-        <div class="oto-buttons">
-          <a id="hotmartDeclineBtn" href="{{ decline_url }}" class="oto-btn oto-btn-secondary">No, gracias. Entiendo que estoy rechazando una oferta única.</a>
+        <div class="oto-timer" id="otoTimer">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>Esta oferta termina en</span>
+          <span class="oto-timer-value" id="otoTimerValue">10:00</span>
         </div>
 
         <div class="oto-footer">⚠ Esta oferta no volverá a aparecer.</div>
@@ -693,18 +548,6 @@
           });
         } catch (err) {}
       }, true);
-    }
-
-    var decline = document.getElementById('hotmartDeclineBtn');
-    if (decline) {
-      decline.addEventListener('click', function () {
-        try {
-          fbq('trackCustom', 'UpsellDeclineClick', {
-            content_name: 'Upsell Extension 3 meses (Hotmart funnel TEST)',
-            content_category: 'upsell'
-          });
-        } catch (err) {}
-      });
     }
 
     var fab = document.getElementById('advisorFab');
