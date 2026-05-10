@@ -12,6 +12,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from datetime import datetime
 from typing import Optional
+from urllib.parse import quote
 import logging
 
 from config import settings
@@ -735,15 +736,33 @@ def _render_upsell_template(
 )
 async def hotmart_sales_funnel_page(request: Request):
     """
-    Embudo post-compra Hotmart (checkout-elements). No usa dLocal ni variables
-    de upsell de esta API; solo sirve el HTML con el widget oficial.
+    Embudo post-compra Hotmart (checkout-elements). Misma narrativa visual que
+    el upsell dLocal + widget Hotmart embebido. El precio mostrado es fijo 197 USD
+    (producto Hotmart). No usa payment_id ni endpoint one-click de dLocal.
 
     En Hotmart, usar esta URL como página destino tras la compra, por ejemplo:
     https://<tu-dominio>/hotmart-sales-funnel
     """
+    decline_url = settings.upsell_decline_url or "/gracias-siguientes-pasos"
+    advisor_enabled = bool(
+        settings.advisor_button_enabled and settings.advisor_whatsapp_phone
+    )
+    advisor_whatsapp_url = None
+    if advisor_enabled and settings.advisor_whatsapp_phone:
+        advisor_whatsapp_url = (
+            f"https://wa.me/{settings.advisor_whatsapp_phone}"
+            f"?text={quote(settings.advisor_whatsapp_message)}"
+        )
+
     return templates.TemplateResponse(
         "hotmart_sales_funnel.html",
-        {"request": request},
+        {
+            "request": request,
+            "meta_pixel_id": settings.meta_pixel_id,
+            "decline_url": decline_url,
+            "advisor_enabled": advisor_enabled,
+            "advisor_whatsapp_url": advisor_whatsapp_url,
+        },
     )
 
 
