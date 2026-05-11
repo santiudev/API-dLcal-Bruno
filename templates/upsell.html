@@ -712,6 +712,10 @@
       var stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         endTime = parseInt(stored, 10);
+        if (!endTime || endTime <= Date.now()) {
+          endTime = Date.now() + DURATION_MS;
+          localStorage.setItem(STORAGE_KEY, String(endTime));
+        }
       } else {
         endTime = Date.now() + DURATION_MS;
         localStorage.setItem(STORAGE_KEY, String(endTime));

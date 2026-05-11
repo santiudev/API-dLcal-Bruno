@@ -286,13 +286,19 @@
 
   .oto-timer.expired { opacity: 0.5; }
 
-  .oto-cta-stack {
+  .oto-buttons {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    align-items: stretch;
-    max-width: 440px;
+    align-items: center;
+    width: 100%;
+    max-width: 460px;
     margin: 0 auto 8px;
+  }
+
+  .oto-buttons .oto-cta-primary {
+    width: 100%;
+    box-sizing: border-box;
   }
 
   .oto-cta-primary {
@@ -317,44 +323,35 @@
     box-shadow: 0 16px 48px rgba(177, 156, 217, 0.45);
   }
 
-  .oto-cta-secondary {
+  /* Decline button — matches upsell (dLocal) .oto-btn-secondary */
+  .oto-btn {
     display: inline-flex;
-    justify-content: center;
     align-items: center;
-    padding: 14px 22px;
-    border-radius: 12px;
+    justify-content: center;
+    width: 100%;
+    padding: 18px 22px;
+    border-radius: 18px;
+    font-family: var(--sans);
     font-size: 15px;
     font-weight: 600;
-    text-decoration: none;
-    color: var(--violet-light);
-    background: transparent;
-    border: 2px solid rgba(177, 156, 217, 0.45);
-    transition: border-color 0.2s ease, background 0.2s ease;
-  }
-
-  .oto-cta-secondary:hover {
-    background: rgba(177, 156, 217, 0.12);
-    border-color: var(--violet-light);
-  }
-
-  .oto-cta-decline {
-    display: inline-block;
-    margin-top: 6px;
-    padding: 10px 12px;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-decoration: none;
-    border-radius: 10px;
-    transition: color 0.2s ease, background 0.2s ease;
-    max-width: 100%;
     text-align: center;
-    line-height: 1.45;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease;
+    line-height: 1.35;
+    letter-spacing: 0.2px;
+    box-sizing: border-box;
   }
 
-  .oto-cta-decline:hover {
-    color: var(--text-body);
-    background: rgba(255, 255, 255, 0.04);
+  .oto-btn-secondary {
+    background: var(--bg-btn-sec);
+    color: var(--text-white);
+    border: 1px solid #2a2a2a;
+  }
+
+  .oto-btn-secondary:hover {
+    background: #1f1f1f;
+    border-color: #3a3a3a;
   }
 
   .oto-footer {
@@ -510,7 +507,7 @@
           <strong>USD ${{ hotmart_upsell_usd }}</strong>
         </p>
 
-        <div class="oto-cta-stack">
+        <div class="oto-buttons">
           <a id="hotmartCtaPrimary"
              href="https://pay.hotmart.com/V105770065S?off=9rgvaaph"
              target="_blank"
@@ -518,14 +515,7 @@
              class="oto-cta-primary">
             Quiero la extensión de 3 meses
           </a>
-          <a id="hotmartCtaSecondary"
-             href="https://pay.hotmart.com/V105770065S?off=9rgvaaph"
-             target="_blank"
-             rel="noopener noreferrer"
-             class="oto-cta-secondary">
-            Ir al checkout en Hotmart
-          </a>
-          <a class="oto-cta-decline" href="/gracias-siguientes-pasos">
+          <a class="oto-btn oto-btn-secondary" href="/gracias-siguientes-pasos">
             No, gracias. Entiendo que estoy rechazando una oferta única.
           </a>
         </div>
@@ -574,6 +564,11 @@
       var stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         endTime = parseInt(stored, 10);
+        /* Expired timestamp in localStorage used to show 00:00 forever; restart countdown */
+        if (!endTime || endTime <= Date.now()) {
+          endTime = Date.now() + DURATION_MS;
+          localStorage.setItem(STORAGE_KEY, String(endTime));
+        }
       } else {
         endTime = Date.now() + DURATION_MS;
         localStorage.setItem(STORAGE_KEY, String(endTime));
@@ -619,10 +614,8 @@
         });
       } catch (err) {}
     }
-    ['hotmartCtaPrimary', 'hotmartCtaSecondary'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('click', fireInitiateCheckout);
-    });
+    var primary = document.getElementById('hotmartCtaPrimary');
+    if (primary) primary.addEventListener('click', fireInitiateCheckout);
 
     var fab = document.getElementById('advisorFab');
     if (fab) {
