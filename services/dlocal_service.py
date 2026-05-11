@@ -53,19 +53,19 @@ class DLocalService:
             amount = 783.00
             max_installments = 9
             installment_amount = 87.00
-            description = f"{settings.payment_description} - 9 cuotas de USD 87"
         elif payment_type == "contado":
             # Pago de contado: USD 597 sin cuotas
             amount = 597.00
             max_installments = 1
             installment_amount = 597.00
-            description = f"{settings.payment_description} - Pago de contado"
         else:  # plan6 (default)
             # 6 cuotas de USD 117 = USD 702 total
             amount = 702.00
             max_installments = 6
             installment_amount = 117.00
-            description = f"{settings.payment_description} - 6 cuotas de USD 117"
+
+        # Misma descripción en checkout dLocal para todos los planes (ver PAYMENT_DESCRIPTION)
+        description = settings.payment_description
         
         # Generar order_id único
         order_id = f"order_{uuid.uuid4().hex[:16]}"

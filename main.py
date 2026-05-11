@@ -138,17 +138,16 @@ async def debug_payment_data(tel: str, country: str, type: str):
         amount = 783.00
         max_installments = 9
         installment_amount = 87.00
-        description = f"{settings.payment_description} - 9 cuotas de USD 87"
     elif payment_type == "contado":
         amount = 597.00
         max_installments = 1
         installment_amount = 597.00
-        description = f"{settings.payment_description} - Pago de contado"
     else:  # plan6
         amount = 702.00
         max_installments = 6
         installment_amount = 117.00
-        description = f"{settings.payment_description} - 6 cuotas de USD 117"
+
+    description = settings.payment_description
     
     order_id = f"order_{uuid.uuid4().hex[:16]}"
     
