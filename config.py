@@ -83,11 +83,9 @@ class Settings(BaseSettings):
     advisor_button_enabled: bool = True
     # Teléfono en formato internacional SIN el "+" (ej: 5491123456789).
     # Si queda vacío, el botón NO se renderiza aunque advisor_button_enabled=True.
-    advisor_whatsapp_phone: Optional[str] = None
+    advisor_whatsapp_phone: Optional[str] = "12298505163"
     # Mensaje pre-cargado en el WhatsApp. Se URL-encodea automáticamente.
-    advisor_whatsapp_message: str = (
-        "Hola, vi la oferta del upsell y quiero entender más antes de decidir."
-    )
+    advisor_whatsapp_message: str = "Hola, necesito ayuda con"
 
     # Application Settings
     environment: str = "development"

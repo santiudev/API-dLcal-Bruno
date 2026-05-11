@@ -114,6 +114,6 @@ services:
       - key: ADVISOR_BUTTON_ENABLED
         value: "true"
       - key: ADVISOR_WHATSAPP_PHONE
-        sync: false           # formato internacional sin "+", ej: 5491123456789
+        value: "12298505163"
       - key: ADVISOR_WHATSAPP_MESSAGE
-        value: "Hola, vi la oferta del upsell y quiero entender más antes de decidir."
+        value: "Hola, necesito ayuda con"
