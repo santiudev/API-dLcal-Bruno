@@ -753,13 +753,13 @@ def _hotmart_funnel_template_response(request: Request, template_name: str):
 @app.get(
     "/hotmart-sales-funnel",
     tags=["Hotmart"],
-    summary="Página post-compra con Sales Funnel Widget (Hotmart)",
+    summary="Página post-compra Hotmart (CTA al checkout externo)",
 )
 async def hotmart_sales_funnel_page(request: Request):
     """
-    Embudo post-compra Hotmart (checkout-elements). Misma narrativa visual que
-    el upsell dLocal + widget Hotmart embebido. El precio mostrado es fijo 197 USD
-    (producto Hotmart). No usa payment_id ni endpoint one-click de dLocal.
+    Embudo post-compra Hotmart. Misma narrativa visual que el upsell dLocal;
+    CTAs al checkout Hotmart y decline a `/gracias-siguientes-pasos` (definidos en el HTML).
+    Copy del precio: 197 USD (producto en Hotmart). No usa payment_id ni one-click de dLocal.
 
     En Hotmart, usar esta URL como página destino tras la compra, por ejemplo:
     https://<tu-dominio>/hotmart-sales-funnel
@@ -770,11 +770,11 @@ async def hotmart_sales_funnel_page(request: Request):
 @app.get(
     "/hotmart-sales-funnel-test",
     tags=["Hotmart"],
-    summary="Misma landing que /hotmart-sales-funnel; widget con init().mount() para pruebas",
+    summary="Copia de prueba de /hotmart-sales-funnel",
 )
 async def hotmart_sales_funnel_test_page(request: Request):
     """
-    Copia de la landing Hotmart para probar otra oferta / funnel en el panel.
+    Copia de la landing Hotmart para pruebas (mismos CTAs que producción).
     URL ejemplo: https://<tu-dominio>/hotmart-sales-funnel-test
     """
     return _hotmart_funnel_template_response(request, "hotmart_sales_funnel_test.html")

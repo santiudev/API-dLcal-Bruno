@@ -286,13 +286,75 @@
 
   .oto-timer.expired { opacity: 0.5; }
 
-  .hotmart-funnel-mount {
-    min-height: 280px;
-    margin-bottom: 0;
+  .oto-cta-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    align-items: stretch;
+    max-width: 440px;
+    margin: 0 auto 8px;
+  }
+
+  .oto-cta-primary {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 18px 28px;
     border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid rgba(177, 156, 217, 0.28);
-    background: rgba(0, 0, 0, 0.35);
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 700;
+    text-decoration: none;
+    color: #0a0612;
+    background: linear-gradient(135deg, var(--violet-light) 0%, var(--violet) 100%);
+    border: none;
+    box-shadow: 0 12px 40px rgba(177, 156, 217, 0.35);
+    transition: transform 0.15s ease, box-shadow 0.2s ease;
+  }
+
+  .oto-cta-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 16px 48px rgba(177, 156, 217, 0.45);
+  }
+
+  .oto-cta-secondary {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    text-decoration: none;
+    color: var(--violet-light);
+    background: transparent;
+    border: 2px solid rgba(177, 156, 217, 0.45);
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .oto-cta-secondary:hover {
+    background: rgba(177, 156, 217, 0.12);
+    border-color: var(--violet-light);
+  }
+
+  .oto-cta-decline {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 10px 12px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 10px;
+    transition: color 0.2s ease, background 0.2s ease;
+    max-width: 100%;
+    text-align: center;
+    line-height: 1.45;
+  }
+
+  .oto-cta-decline:hover {
+    color: var(--text-body);
+    background: rgba(255, 255, 255, 0.04);
   }
 
   .oto-footer {
@@ -448,8 +510,25 @@
           <strong>USD ${{ hotmart_upsell_usd }}</strong>
         </p>
 
-        <div id="hotmart-sales-funnel" class="hotmart-funnel-mount"></div>
-        <script src="https://checkout.hotmart.com/lib/hotmart-checkout-elements.js"></script>
+        <div class="oto-cta-stack">
+          <a id="hotmartCtaPrimary"
+             href="https://pay.hotmart.com/V105770065S?off=9rgvaaph"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="oto-cta-primary">
+            Quiero la extensión de 3 meses
+          </a>
+          <a id="hotmartCtaSecondary"
+             href="https://pay.hotmart.com/V105770065S?off=9rgvaaph"
+             target="_blank"
+             rel="noopener noreferrer"
+             class="oto-cta-secondary">
+            Ir al checkout en Hotmart
+          </a>
+          <a class="oto-cta-decline" href="/gracias-siguientes-pasos">
+            No, gracias. Entiendo que estoy rechazando una oferta única.
+          </a>
+        </div>
 
         <div class="oto-timer" id="otoTimer">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -528,21 +607,22 @@
     if (typeof fbq !== 'function') return;
 
     var tracked = false;
-    var mount = document.querySelector('.hotmart-funnel-mount');
-    if (mount) {
-      mount.addEventListener('click', function () {
-        if (tracked) return;
-        tracked = true;
-        try {
-          fbq('track', 'InitiateCheckout', {
-            content_name: 'Upsell Extension 3 meses (Hotmart funnel)',
-            content_category: 'upsell',
-            value: {{ hotmart_upsell_usd }},
-            currency: 'USD'
-          });
-        } catch (err) {}
-      }, true);
+    function fireInitiateCheckout() {
+      if (tracked) return;
+      tracked = true;
+      try {
+        fbq('track', 'InitiateCheckout', {
+          content_name: 'Upsell Extension 3 meses (Hotmart funnel)',
+          content_category: 'upsell',
+          value: {{ hotmart_upsell_usd }},
+          currency: 'USD'
+        });
+      } catch (err) {}
     }
+    ['hotmartCtaPrimary', 'hotmartCtaSecondary'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('click', fireInitiateCheckout);
+    });
 
     var fab = document.getElementById('advisorFab');
     if (fab) {
