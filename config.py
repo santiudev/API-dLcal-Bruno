@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     # dLocal Checkout Branding (títulos que aparecen en el checkout)
     merchant_name: str = "Mentoría León"  # Nombre que aparece en el checkout
     payment_description: str = "Mentoría León"     # Descripción del pago
+    # Checkout fijo USD 300 (embudo lead): descripción en pantalla dLocal.
+    lead_300_description: str = "Lead program - USD 300"
 
     # One-Click Upsell (One Time Offer)
     # Requiere que dLocal Go habilite la feature en la cuenta del merchant.

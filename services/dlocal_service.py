@@ -39,7 +39,7 @@ class DLocalService:
         Args:
             phone_number: Número de teléfono del cliente
             country: Código ISO del país (2 letras)
-            payment_type: 'plan6' (6x USD 117), 'plan9' (9x USD 87) o 'contado' (USD 597 pago único)
+            payment_type: 'plan6' (6x USD 117), 'plan9' (9x USD 87), 'contado' (USD 597) o 'lead300' (USD 300 único)
             customer_name: Nombre del cliente (opcional)
             customer_email: Email del cliente (opcional)
             
@@ -53,6 +53,12 @@ class DLocalService:
             amount = 783.00
             max_installments = 9
             installment_amount = 87.00
+        elif payment_type == "lead300":
+            # Pago único embudo lead (USD 300). Sin cuotas; sin upsell one-click
+            # para no forzar solo tarjeta ni mezclar con el flujo Mentoría León.
+            amount = 300.00
+            max_installments = 1
+            installment_amount = 300.00
         elif payment_type == "contado":
             # Pago de contado: USD 597 sin cuotas
             amount = 597.00
@@ -64,8 +70,11 @@ class DLocalService:
             max_installments = 6
             installment_amount = 117.00
 
-        # Misma descripción en checkout dLocal para todos los planes (ver PAYMENT_DESCRIPTION)
-        description = settings.payment_description
+        if payment_type == "lead300":
+            description = settings.lead_300_description
+        else:
+            # Misma descripción en checkout dLocal para planes Mentoría León
+            description = settings.payment_description
         
         # Generar order_id único
         order_id = f"order_{uuid.uuid4().hex[:16]}"
@@ -89,12 +98,9 @@ class DLocalService:
         if max_installments > 1:
             payment_data["max_installments"] = max_installments
 
-        # One-Click Upsell: si está habilitado en la cuenta del merchant, se pide
-        # allow_upsell=true para que dLocal devuelva el merchant_checkout_token y
-        # permita cobrar el OTO con un solo click después del pago original.
-        # IMPORTANTE: con allow_upsell=true, el checkout solo permite tarjetas de
-        # crédito/débito (no efectivo, no transferencia).
-        if settings.upsell_enabled:
+        # One-Click Upsell: solo en planes Mentoría León. lead300 omite upsell
+        # para conservar todos los métodos de pago por país en el checkout.
+        if settings.upsell_enabled and payment_type != "lead300":
             payment_data["allow_upsell"] = True
         
         # Las URLs de retorno son opcionales: si no están seteadas en .env,
@@ -104,7 +110,11 @@ class DLocalService:
         # cuando hay upsell habilitado, le inyectamos NOSOTROS el order_id como
         # query param para poder identificar el pago cuando vuelve el cliente.
         success_url_final = settings.dlocal_success_url
-        if success_url_final and settings.upsell_enabled:
+        if (
+            success_url_final
+            and settings.upsell_enabled
+            and payment_type != "lead300"
+        ):
             separator = "&" if "?" in success_url_final else "?"
             success_url_final = f"{success_url_final}{separator}order_id={order_id}"
 

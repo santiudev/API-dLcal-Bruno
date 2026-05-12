@@ -7,11 +7,14 @@ from typing import Optional, Literal, Dict, Any
 
 class PaymentRequest(BaseModel):
     """Request para crear un pago"""
-    phone_number: str = Field(..., description="Número de teléfono del cliente")
+    phone_number: Optional[str] = Field(
+        None,
+        description="Número de teléfono del cliente (opcional; si no se envía, el checkout queda sin tel precargado)",
+    )
     country: str = Field(..., min_length=2, max_length=2, description="Código ISO del país (ej: BR, MX, AR)")
-    payment_type: Literal["plan6", "plan9", "contado"] = Field(
+    payment_type: Literal["plan6", "plan9", "contado", "lead300"] = Field(
         ...,
-        description="Tipo de pago: plan6 (6x USD 117), plan9 (9x USD 87) o contado (USD 597 pago único)"
+        description="Tipo de pago: plan6 (6x USD 117), plan9 (9x USD 87), contado (USD 597) o lead300 (USD 300 único)"
     )
     
     # Campos opcionales adicionales del cliente

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import secrets
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status, Form
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
@@ -56,6 +56,7 @@ def _normalize_payment_type(raw_type: str) -> str:
     - plan6 / 6 / 6cuotas / 117             -> "plan6" (6 cuotas de USD 117)
     - plan9 / 9 / 9cuotas / 87              -> "plan9" (9 cuotas de USD 87)
     - contado / single / unico / 597        -> "contado" (USD 597 pago único)
+    - lead300 / 300 / lead                  -> "lead300" (USD 300 pago único)
     Por defecto devuelve "plan6".
     """
     value = (raw_type or "").lower().strip()
@@ -63,7 +64,42 @@ def _normalize_payment_type(raw_type: str) -> str:
         return "plan9"
     if value in ("contado", "single", "unico", "único", "597"):
         return "contado"
+    if value in ("lead300", "300", "lead"):
+        return "lead300"
     return "plan6"
+
+
+# Países admitidos en el checkout USD 300 (deben coincidir con lo que tu cuenta dLocal Go procesa).
+LEAD_300_COUNTRY_CHOICES: list[tuple[str, str]] = [
+    ("AR", "Argentina"),
+    ("BO", "Bolivia"),
+    ("BR", "Brasil"),
+    ("CL", "Chile"),
+    ("CO", "Colombia"),
+    ("CR", "Costa Rica"),
+    ("EC", "Ecuador"),
+    ("SV", "El Salvador"),
+    ("GT", "Guatemala"),
+    ("HN", "Honduras"),
+    ("MX", "México"),
+    ("NI", "Nicaragua"),
+    ("PA", "Panamá"),
+    ("PY", "Paraguay"),
+    ("PE", "Perú"),
+    ("DO", "República Dominicana"),
+    ("UY", "Uruguay"),
+]
+LEAD_300_ALLOWED_ISO2 = frozenset(code for code, _ in LEAD_300_COUNTRY_CHOICES)
+
+
+def _validate_checkout_300_country(country: str) -> str:
+    c = (country or "").strip().upper()
+    if len(c) != 2 or c not in LEAD_300_ALLOWED_ISO2:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or unsupported country code for USD 300 checkout",
+        )
+    return c
 
 
 @app.get("/", tags=["Health"])
@@ -86,6 +122,89 @@ async def health_check():
         timestamp=datetime.utcnow().isoformat() + "Z",
         version="1.0.0"
     )
+
+
+@app.get("/checkout/300", tags=["Payments"])
+async def checkout_300_landing(request: Request):
+    """
+    URL fija (sin query string) para cobrar USD 300: el cliente elige país y
+    continúa a dLocal. La API de dLocal Go exige `country` al crear el pago;
+    esta pantalla evita hardcodear un país en el link de marketing.
+    """
+    return templates.TemplateResponse(
+        "checkout_300.html",
+        {
+            "request": request,
+            "page_title": "Pago seguro - USD 300",
+            "countries": LEAD_300_COUNTRY_CHOICES,
+        },
+    )
+
+
+@app.post("/checkout/300/pay", tags=["Payments"])
+async def checkout_300_submit(country: str = Form(...)):
+    """Recibe el país del formulario y redirige al checkout de dLocal (USD 300)."""
+    from fastapi.responses import RedirectResponse
+
+    cc = _validate_checkout_300_country(country)
+    try:
+        payment_response = await dlocal_service.create_payment(
+            phone_number=None,
+            country=cc,
+            payment_type="lead300",
+        )
+    except Exception as e:
+        logger.error(f"Error creating USD 300 payment: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating payment: {str(e)}",
+        )
+    return RedirectResponse(url=payment_response.redirect_url)
+
+
+@app.get("/pagar/300", tags=["Payments"])
+async def redirect_checkout_300(country: Optional[str] = None):
+    """
+    Atajo a USD 300: sin `country` redirige a `/checkout/300`.
+    Con `?country=XX` crea el pago y manda directo a dLocal.
+    """
+    from fastapi.responses import RedirectResponse
+
+    if not country or not str(country).strip():
+        base = settings.app_base_url.rstrip("/")
+        return RedirectResponse(url=f"{base}/checkout/300", status_code=302)
+    cc = _validate_checkout_300_country(country)
+    try:
+        payment_response = await dlocal_service.create_payment(
+            phone_number=None,
+            country=cc,
+            payment_type="lead300",
+        )
+    except Exception as e:
+        logger.error(f"Error creating USD 300 payment: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating payment: {str(e)}",
+        )
+    return RedirectResponse(url=payment_response.redirect_url)
+
+
+@app.get("/api/pago/300", response_model=PaymentResponse, tags=["Payments"])
+async def create_payment_checkout_300_json(country: str):
+    """Crea un pago USD 300 y devuelve JSON. Requiere query `country` (ISO2)."""
+    cc = _validate_checkout_300_country(country)
+    try:
+        return await dlocal_service.create_payment(
+            phone_number=None,
+            country=cc,
+            payment_type="lead300",
+        )
+    except Exception as e:
+        logger.error(f"Error creating USD 300 payment: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating payment: {str(e)}",
+        )
 
 
 @app.post("/debug/test-webhook", tags=["Debug"])

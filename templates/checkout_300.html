@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ page_title }}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0b;
+    --card: #141416;
+    --border: #2a2a2e;
+    --text: #f4f4f5;
+    --muted: #a1a1aa;
+    --accent: #8b5cf6;
+    --accent-hover: #7c3aed;
+    --display: 'Bricolage Grotesque', -apple-system, BlinkMacSystemFont, sans-serif;
+    --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 24px 24px;
+  }
+  h1 {
+    font-family: var(--display);
+    font-size: 1.35rem;
+    font-weight: 600;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  .sub {
+    color: var(--muted);
+    font-size: 0.95rem;
+    text-align: center;
+    margin-bottom: 24px;
+    line-height: 1.5;
+  }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  select {
+    width: 100%;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #0a0a0b;
+    color: var(--text);
+    font-size: 1rem;
+    margin-bottom: 20px;
+    cursor: pointer;
+  }
+  select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  button {
+    width: 100%;
+    padding: 14px 18px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--display);
+  }
+  button:hover { background: var(--accent-hover); }
+  .fine {
+    margin-top: 16px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.45;
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Pago seguro</h1>
+    <p class="sub">Total <strong>USD 300</strong>. Elegí tu país para continuar al checkout; allí completás tus datos y método de pago.</p>
+    <form method="post" action="/checkout/300/pay">
+      <label for="country">País</label>
+      <select id="country" name="country" required>
+        <option value="" disabled selected>Seleccionar…</option>
+        {% for code, name in countries %}
+        <option value="{{ code }}">{{ name }} ({{ code }})</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Continuar al pago</button>
+    </form>
+    <p class="fine">Procesado por dLocal. No compartas este enlace en sitios públicos si no querés que terceros inicien un pago.</p>
+  </div>
+</body>
+</html>
