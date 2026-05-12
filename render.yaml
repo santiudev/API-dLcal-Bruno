@@ -81,7 +81,7 @@ services:
       - key: UPSELL_ENABLED
         value: "true"
       - key: UPSELL_AMOUNT
-        value: "197"
+        value: "147"
       - key: UPSELL_DESCRIPTION
         value: Mentoría León - Extensión de 3 meses
       - key: UPSELL_DECLINE_URL

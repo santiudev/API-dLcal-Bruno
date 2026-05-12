@@ -35,15 +35,16 @@ class Settings(BaseSettings):
     # por lo que el checkout solo permitirá tarjetas de crédito/débito.
     # Hay una ventana de 15 minutos desde el pago original para confirmar el upsell.
     upsell_enabled: bool = True
-    upsell_amount: float = 197.00                                          # Monto del producto upsell (USD) — variante A (control)
+    # Precio único del upsell (USD). Ganador del A/B previo: variante B ($147).
+    upsell_amount: float = 147.00
     upsell_description: str = "Mentoría León - Extensión de 3 meses"       # Descripción del cargo upsell
 
     # A/B test de precio (transparente al cliente, sticky por order_id 50/50).
     # Si está habilitado, cada nuevo checkout queda asignado al azar a variante A
-    # ($197) o B (precio configurable abajo). La variante se guarda en el cache
+    # (UPSELL_AMOUNT) o B (UPSELL_AMOUNT_VARIANT_B). La variante se guarda en el cache
     # del upsell y se respeta a lo largo de todo el flujo del cliente.
     upsell_ab_test_enabled: bool = False
-    upsell_amount_variant_b: float = 147.00  # Precio alternativo (USD) para la variante B
+    upsell_amount_variant_b: float = 147.00  # Solo usado si UPSELL_AB_TEST_ENABLED=true
 
     # Switch de testing: si está en true, los endpoints /pagar y /api/pago aceptan
     # un query param `force_ab=A|B` que sobreescribe el random.choice. Útil para

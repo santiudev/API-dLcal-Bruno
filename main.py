@@ -903,8 +903,8 @@ async def render_upsell_page(
     a buscar el payment_id en dLocal y va a fallar (porque es un ID inventado).
 
     Ejemplos para QA:
-        /upsell/preview-test                      → precio default ($197)
-        /upsell/preview-test?preview_variant=A    → fuerza variante A ($197)
+        /upsell/preview-test                      → precio default ($147)
+        /upsell/preview-test?preview_variant=A    → fuerza variante A ($147)
         /upsell/preview-test?preview_variant=B    → fuerza variante B ($147)
 
     El template incluye:
