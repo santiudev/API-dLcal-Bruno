@@ -6,7 +6,7 @@ from pathlib import Path
 
 import secrets
 
-from fastapi import Depends, FastAPI, HTTPException, Request, status, Form
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
@@ -130,6 +130,8 @@ async def checkout_300_landing(request: Request):
     URL fija (sin query string) para cobrar USD 300: el cliente elige país y
     continúa a dLocal. La API de dLocal Go exige `country` al crear el pago;
     esta pantalla evita hardcodear un país en el link de marketing.
+
+    El formulario envía GET a `/pagar/300?country=XX` (sin POST ni multipart).
     """
     return templates.TemplateResponse(
         "checkout_300.html",
@@ -139,27 +141,6 @@ async def checkout_300_landing(request: Request):
             "countries": LEAD_300_COUNTRY_CHOICES,
         },
     )
-
-
-@app.post("/checkout/300/pay", tags=["Payments"])
-async def checkout_300_submit(country: str = Form(...)):
-    """Recibe el país del formulario y redirige al checkout de dLocal (USD 300)."""
-    from fastapi.responses import RedirectResponse
-
-    cc = _validate_checkout_300_country(country)
-    try:
-        payment_response = await dlocal_service.create_payment(
-            phone_number=None,
-            country=cc,
-            payment_type="lead300",
-        )
-    except Exception as e:
-        logger.error(f"Error creating USD 300 payment: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error creating payment: {str(e)}",
-        )
-    return RedirectResponse(url=payment_response.redirect_url)
 
 
 @app.get("/pagar/300", tags=["Payments"])
